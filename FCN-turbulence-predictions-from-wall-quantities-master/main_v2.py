@@ -158,29 +158,34 @@ Y_pred = np.ndarray((n_samples_tot, app.N_VARS_OUT,
 avg_inputs = np.broadcast_to(np.mean(np.mean(X_test, axis=-1, keepdims=True),
                                      axis=-2, keepdims=True),
                              X_test.shape)
+CHECK_MODEL_CORRECTNESS = False
+if CHECK_MODEL_CORRECTNESS:
+    if app.N_VARS_OUT == 3:
+        # reduce batch size for smaller gpu
+        (Y_pred[:, 0, np.newaxis], Y_pred[:, 1, np.newaxis], Y_pred[:, 2, np.newaxis]) = \
+            CNN_model.predict(X_test, batch_size=2)
 
-if app.N_VARS_OUT == 3:
-    # reduce batch size for smaller gpu
-    (Y_pred[:, 0, np.newaxis], Y_pred[:, 1, np.newaxis], Y_pred[:, 2, np.newaxis]) = \
-        CNN_model.predict(X_test, batch_size=2)
+    mse_total = []
+    for comparative_idx in range(3):
+        comparative_idx = 2
+        mse_orig = np.mean((Y_pred[:, comparative_idx, :, :] - Y_test[:, comparative_idx, :, :])**2)
 
-comparative_idx = 2
-mse_orig = np.mean((Y_pred[:, comparative_idx, :, :] - Y_test[:, comparative_idx, :, :])**2)
+        for i in tqdm(range(len(X_test))):
+            output_mse = tf.reduce_mean(tf.reduce_mean(tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :])), axis=-1), axis=-1)
+            first_output_model = Model(inputs=CNN_model.input, outputs=output_mse)
 
-for i in tqdm(range(len(X_test))):
-    output_mse = tf.reduce_mean(tf.reduce_mean(tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :])), axis=-1), axis=-1)
-    first_output_model = Model(inputs=CNN_model.input, outputs=output_mse)
+            # add extra first dim back to keep the shape
+            Y_pred_next = first_output_model.predict(X_test[i][None, :])
+            if i == 0:
+                Y_pred_total = Y_pred_next
+            else:
+                Y_pred_total = np.concatenate([Y_pred_total, Y_pred_next])
+            z = 0
 
-    # add extra first dim back to keep the shape
-    Y_pred_next = first_output_model.predict(X_test[i][None, :])
-    if i == 0:
-        Y_pred_total = Y_pred_next
-    else:
-        Y_pred_total = np.concatenate([Y_pred_total, Y_pred_next])
-    z = 0
+        test_mse = mse_orig - np.mean(Y_pred_total)
+        mse_total.append(test_mse)
 
-test_mse = mse_orig - np.mean(Y_pred_total)
-
+    assert np.mean(np.array(mse_total)) < 1e-8
 
 #
 # print(type(Y_pred))
