@@ -211,7 +211,49 @@ if CHECK_MODEL_CORRECTNESS:
 #         Y_pred[:,i] = Y_pred[:,i] + avgs[i][ypos_Ret[str(target_yp)]]
 #         Y_test[:,i] = Y_test[:,i] + avgs[i][ypos_Ret[str(target_yp)]]
 
-print(Y_pred.shape)
+
+
+avg_inputs = np.broadcast_to(np.mean(np.mean(X_test, axis=-1, keepdims=True),
+                                     axis=-2, keepdims=True),
+                             X_test.shape)
+# both are patches and should be examined why this version fails exactly
+shap.explainers._deep.deep_tf.op_handlers["FusedBatchNormV3"] = shap.explainers._deep.deep_tf.passthrough
+# shap.explainers._deep.deep_tf.op_handlers["FusedBatchNormV3"] = shap.explainers._deep.deep_tf.linearity_1d(0)
+final_shap = []
+for comparative_idx in range(3):
+    for i in tqdm(range(len(X_test))):
+
+        # redefine the output to MSE
+        output_mse = tf.reduce_mean(tf.reduce_mean(tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :])), axis=-1), axis=-1)
+
+        # first_output_model_v1 = Model(inputs=CNN_model.input, outputs=tf.reshape(CNN_model.output[0][:, 0, :, :], [-1, 192*192]))
+        first_output_model = Model(inputs=CNN_model.input, outputs=output_mse)
+
+        # pass as background the mean of this specific sample
+        explainer = shap.DeepExplainer(first_output_model, avg_inputs[i][None, :])
+
+        # explain the specific X sample
+        shap_values = explainer.shap_values(X_test[i][None, :], check_additivity=False)
+
+        if i == 0 :
+            shap_values_combined = shap_values
+        else:
+            shap_values_combined = np.concatenate((shap_values_combined, shap_values), axis=0)
+
+    final_shap.append(shap_values_combined)
+
+k = 0
+
+mean_shap = np.mean(np.abs(shap_values), axis=0)
+plt.figure(figsize=(4, 8))
+for i, img in enumerate(mean_shap):
+    plt.subplot(len(mean_shap[0]), 1, i+1)
+    plt.imshow(img, cmap='RdBu', vmin=np.min(img), vmax=np.max(img))
+plt.show()
+
+shap.image_plot([i.T for i in shap_values_combined], X_test.reshape(10, 208, 208, 3)[0])
+
+
 
 i_set_pred = 0
 while os.path.exists(pred_path + f'pred_fluct{i_set_pred:04d}.npz'):
