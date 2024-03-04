@@ -27,7 +27,7 @@ from src.tfrecord_utils import get_dataset
 # %% Configuration import
 import config
 
-prb_def = 'WallReconfluct'
+prb_def = 'WallRecon'
 # prb_def = os.environ.get('MODEL_CNN', None)
 #
 # if not prb_def:
@@ -81,6 +81,17 @@ tstamp = app.TIMESTAMP
 dataset_test, X_test, n_samples_tot, model_config = \
     get_dataset(prb_def, app, timestamp=tstamp,
                 train=False, distributed_training=distributed_training)
+
+
+ds_path = app.DS_PATH_TEST
+# Average profiles folder
+avg_path = ds_path + '/.avg/'
+avgs = tf.reshape(tf.constant(np.loadtxt(avg_path + 'mean_' +
+                                         app.VARS_NAME_OUT[0] + '.m').astype(np.float32)[:, 1]), (1, -1))
+for i in range(1, app.N_VARS_OUT):
+    avgs = tf.concat((avgs, tf.reshape(tf.constant(
+        np.loadtxt(avg_path + 'mean_' +
+                   app.VARS_NAME_OUT[i] + '.m').astype(np.float32)[:, 1]), (1, -1))), 0)
 
 print('')
 print('# ====================================================================')
@@ -212,10 +223,10 @@ if CHECK_MODEL_CORRECTNESS:
 #                         u_rms
 
 # if pred_fluct == True:
-#     for i in range(app.N_VARS_OUT):
-#         print('Adding back mean of the component '+str(i))
-#         Y_pred[:,i] = Y_pred[:,i] + avgs[i][ypos_Ret[str(target_yp)]]
-#         Y_test[:,i] = Y_test[:,i] + avgs[i][ypos_Ret[str(target_yp)]]
+# for i in range(app.N_VARS_OUT):
+#     print('Adding back mean of the component '+str(i))
+#     Y_pred[:,i] = Y_pred[:,i] + avgs[i][model_config['ypos_Ret'][str(app.TARGET_YP)]]
+#     Y_test[:,i] = Y_test[:,i] + avgs[i][model_config['ypos_Ret'][str(app.TARGET_YP)]]
 
 
 
