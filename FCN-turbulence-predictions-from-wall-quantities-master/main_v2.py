@@ -154,11 +154,7 @@ Y_pred = np.ndarray((n_samples_tot, app.N_VARS_OUT,
                      model_config['nx_'], model_config['nz_']), dtype='float')
 
 
-
-avg_inputs = np.broadcast_to(np.mean(np.mean(X_test, axis=-1, keepdims=True),
-                                     axis=-2, keepdims=True),
-                             X_test.shape)
-CHECK_MODEL_CORRECTNESS = False
+CHECK_MODEL_CORRECTNESS = True
 if CHECK_MODEL_CORRECTNESS:
     if app.N_VARS_OUT == 3:
         # reduce batch size for smaller gpu
@@ -166,12 +162,21 @@ if CHECK_MODEL_CORRECTNESS:
             CNN_model.predict(X_test, batch_size=2)
 
     mse_total = []
+    mse_orig_total = []
     for comparative_idx in range(3):
-        comparative_idx = 2
+        # comparative_idx = 2
         mse_orig = np.mean((Y_pred[:, comparative_idx, :, :] - Y_test[:, comparative_idx, :, :])**2)
 
         for i in tqdm(range(len(X_test))):
-            output_mse = tf.reduce_mean(tf.reduce_mean(tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :])), axis=-1), axis=-1)
+
+            # get closer to the MSE layer one by one and look for the bug:
+            # output_mse = CNN_model.output[comparative_idx][:, 0, :, :]
+            # output_mse = tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :]))
+            # output_mse = tf.reduce_mean(tf.reduce_mean(tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :])), axis=-1), axis=-1)
+
+            output_mse = tf.reduce_mean(tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :])), axis=(1, 2))
+
+            output_mse = tf.cast(output_mse, dtype=tf.float64)  # important to recast to float64, otherwise amplified numerical errors
             first_output_model = Model(inputs=CNN_model.input, outputs=output_mse)
 
             # add extra first dim back to keep the shape
@@ -182,10 +187,11 @@ if CHECK_MODEL_CORRECTNESS:
                 Y_pred_total = np.concatenate([Y_pred_total, Y_pred_next])
             z = 0
 
+        mse_orig_total.append(mse_orig)
         test_mse = mse_orig - np.mean(Y_pred_total)
         mse_total.append(test_mse)
 
-    assert np.mean(np.array(mse_total)) < 1e-8
+    assert np.mean(np.array(mse_total)) < 1e-10
 
 #
 # print(type(Y_pred))
