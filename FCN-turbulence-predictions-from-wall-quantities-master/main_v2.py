@@ -246,8 +246,11 @@ for comparative_idx in range(3):
         # first_output_model_v1 = Model(inputs=CNN_model.input, outputs=tf.reshape(CNN_model.output[0][:, 0, :, :], [-1, 192*192]))
         first_output_model = Model(inputs=CNN_model.input, outputs=output_mse)
 
+        current_mean = np.broadcast_to(np.mean(np.mean(X_test[i], axis=-1, keepdims=True), axis=-2, keepdims=True),
+                                       X_test[i].shape)
+
         # pass as background the mean of this specific sample
-        explainer = shap.DeepExplainer(first_output_model, avg_inputs[i][None, :])
+        explainer = shap.DeepExplainer(first_output_model, current_mean[None, :])
 
         # explain the specific X sample
         shap_values = explainer.shap_values(X_test[i][None, :], check_additivity=False)
