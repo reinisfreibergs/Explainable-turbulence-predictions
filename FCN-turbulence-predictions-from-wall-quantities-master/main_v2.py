@@ -16,6 +16,8 @@ from tensorflow.keras.utils import plot_model
 import shap
 from tqdm import tqdm
 
+# tf.config.run_functions_eagerly(True)
+
 sys.path.insert(0, '../conf')
 sys.path.insert(0, '../models')
 
@@ -23,6 +25,7 @@ sys.path.insert(0, '../models')
 from src.training_utils import load_trained_model
 from src.tfrecord_utils import get_dataset
 # from conf.config_sample import WallRecon
+from sklearn.linear_model import LinearRegression
 
 # %% Configuration import
 import config
@@ -123,6 +126,46 @@ print('# ====================================================================')
 itr = iter(dataset_test)
 itrX = iter(X_test)
 
+calculate_running_stats = False
+if calculate_running_stats:
+    total_sum_x = np.zeros((3,))
+    total_squared_sum_x = np.zeros((3,))
+    num_elements_x = np.zeros((3,))
+
+    total_sum_y = np.zeros((3,))
+    total_squared_sum_y = np.zeros((3,))
+    num_elements_y = np.zeros((3,))
+
+    for i in tqdm(range(n_samples_tot)):
+        X_test = next(itrX).numpy()
+        Y_test = np.array([np.array(i).squeeze() for i in next(itr)])
+
+        total_sum_y += np.sum(Y_test, axis=(1, 2))
+        total_squared_sum_y += np.sum(Y_test ** 2, axis=(1, 2))
+        num_elements_y += np.prod(Y_test.shape[-1] ** 2)
+
+        total_sum_x += np.sum(X_test, axis=(1, 2))
+        total_squared_sum_x += np.sum(X_test ** 2, axis=(1, 2))
+        num_elements_x += np.prod(X_test.shape[-1] ** 2)
+
+
+    mean_x = total_sum_x / num_elements_x
+    mean_x_sum = total_squared_sum_x / num_elements_x
+    std_x = np.sqrt((mean_x_sum - mean_x**2))
+
+    mean_y = total_sum_y / num_elements_y
+    mean_y_sum = total_squared_sum_y / num_elements_y
+    std_y = np.sqrt((mean_y_sum - mean_y**2))
+
+    # print all means and stds
+    print(mean_x, std_x, mean_y, std_y)
+    np.save(rf'./mean_x_{app.TARGET_YP}.npy', mean_x)
+    np.save(rf'./std_x_{app.TARGET_YP}.npy', std_x)
+    np.save(rf'./mean_y_{app.TARGET_YP}.npy', mean_y)
+    np.save(rf'./std_y_{app.TARGET_YP}.npy', std_y)
+    Z = 0
+
+
 X_test = np.ndarray((n_samples_tot, app.N_VARS_IN,
                      model_config['nx_'] + model_config['pad'],
                      model_config['nz_'] + model_config['pad']),
@@ -132,7 +175,7 @@ Y_test = np.ndarray((n_samples_tot, app.N_VARS_OUT,
                      model_config['nz_']),
                     dtype='float')
 ii = 0
-for i in range(n_samples_tot):
+for i in tqdm(range(n_samples_tot)):
     X_test[i] = next(itrX)
     if app.N_VARS_OUT == 1:
         Y_test[i, 0] = next(itr)
@@ -164,6 +207,54 @@ CNN_model = load_trained_model(model_config)
 Y_pred = np.ndarray((n_samples_tot, app.N_VARS_OUT,
                      model_config['nx_'], model_config['nz_']), dtype='float')
 
+linear_fit_coefs_yp15 = np.array([[1.0067024127808921, 0.28081194650770736],
+                    [1.995712269446302, 0.00113387769428069],
+                    [0.8699978550994905, 0.0007984776097612707]])
+
+unscaled_linear_fit_coefs_yp15 = np.array([[1.0053727567532835, 0.46484704355767237],
+                    [0.17310239073465103, 7.299703035367277e-05],
+                    [0.3680142918972308, 0.0002917722520545312]])
+
+
+
+u_rms = model_config['rms'][0][model_config['ypos_Ret'][str(app.TARGET_YP)]]
+rms = np.array([model_config['rms'][0][model_config['ypos_Ret'][str(app.TARGET_YP)]] / u_rms.numpy(),
+             model_config['rms'][1][model_config['ypos_Ret'][str(app.TARGET_YP)]] / u_rms.numpy(),
+             model_config['rms'][2][model_config['ypos_Ret'][str(app.TARGET_YP)]] / u_rms.numpy()])
+
+means = [avgs[i][model_config['ypos_Ret'][str(app.TARGET_YP)]].numpy() for i in range(3)]
+
+default_scale = np.array([[(model_config['rms'][i][model_config['ypos_Ret'][str(app.TARGET_YP)]] / u_rms).numpy(),
+                           avgs[i][model_config['ypos_Ret'][str(app.TARGET_YP)]].numpy()] for i in range(3)])
+
+# final_std_mean_scale = np.array([np.std(Y_test, axis=(0, 2, 3)) / np.std(Y_test, axis=(0, 2, 3))[0],
+#                                 np.mean(Y_test, axis=(0, 2, 3))]).T
+
+final_std_scale = np.load(rf'./std_y_{app.TARGET_YP}.npy')
+final_mean_scale = np.load(rf'./mean_y_{app.TARGET_YP}.npy')
+final_std_mean_scale = np.array([final_std_scale, final_mean_scale]).T
+# create the rms ratio
+final_std_mean_scale[:, 0] /= final_std_mean_scale[0, 0]
+
+def default_scale_predicted_output(pred_init):
+    # # Revert back to the flow field
+    pred = np.array(pred_init)
+    if app.SCALE_OUTPUT == True:
+        u_rms = model_config['rms'][0] \
+            [model_config['ypos_Ret'][str(app.TARGET_YP)]]
+
+        for i in range(app.N_VARS_OUT):
+            print('Rescale back component ' + str(i))
+            pred[:, i] *= model_config['rms'][i][model_config['ypos_Ret'][str(app.TARGET_YP)]] / u_rms
+
+
+    # if app.FLUCTUATIONS_PRED == True:
+    #     for i in range(app.N_VARS_OUT):
+    #         print('Adding back mean of the component '+str(i))
+    #         pred[:,i] = pred[:, i] + avgs[i][model_config['ypos_Ret'][str(app.TARGET_YP)]]
+
+    return pred
+
 
 CHECK_MODEL_CORRECTNESS = True
 if CHECK_MODEL_CORRECTNESS:
@@ -172,20 +263,83 @@ if CHECK_MODEL_CORRECTNESS:
         (Y_pred[:, 0, np.newaxis], Y_pred[:, 1, np.newaxis], Y_pred[:, 2, np.newaxis]) = \
             CNN_model.predict(X_test, batch_size=2)
 
+    # np.min(Y_pred), np.max(Y_pred), np.min(Y_test), np.max(Y_test)
+    total_comparisons = []
+    Y_pred_copy = np.array(Y_pred)
     mse_total = []
     mse_orig_total = []
     for comparative_idx in range(3):
         # comparative_idx = 2
-        mse_orig = np.mean((Y_pred[:, comparative_idx, :, :] - Y_test[:, comparative_idx, :, :])**2)
+        # a, b = linear_fit_coefs_yp15[comparative_idx, 0], linear_fit_coefs_yp15[comparative_idx, 1]
+        a, b = unscaled_linear_fit_coefs_yp15[comparative_idx, 0], unscaled_linear_fit_coefs_yp15[comparative_idx, 1]
+        final_std, final_mean = final_std_mean_scale[comparative_idx][0], final_std_mean_scale[comparative_idx][1]
 
+        mse_orig = np.mean((np.array(Y_pred)[:, comparative_idx, :, :] - Y_test[:, comparative_idx, :, :])**2)
+        mse_default_scaled = np.mean((default_scale_predicted_output(np.array(Y_pred[:, comparative_idx, :, :])) - Y_test[:, comparative_idx, :, :])**2)
+        # mse_linearly_scaled = np.mean(((a*np.array(Y_pred[:, comparative_idx, :, :])+b) - Y_test[:, comparative_idx, :, :])**2)
+        mse_linearly_scaled = np.mean(
+            (np.array(Y_pred[:, comparative_idx, :, :]) - (Y_test[:, comparative_idx, :, :] - b)/a) ** 2)
+        mse_default_scaled_y = np.mean((np.array(Y_pred[:, comparative_idx, :, :]) - default_scale_predicted_output(Y_test[:, comparative_idx, :, :])) ** 2)
+        # mse_finally_scaled = np.mean((np.array(Y_test[:, comparative_idx, :, :]) - (Y_pred[:, comparative_idx, :, :] * final_std + final_mean)) ** 2)
+        mse_finally_scaled = np.mean((np.array(Y_test[:, comparative_idx, :, :]) - (Y_pred[:, comparative_idx, :, :] * final_std)) ** 2)
+
+
+        reference_squared_value = np.mean(Y_test[:, comparative_idx, :, :]**2)
+        comparisons = [reference_squared_value, mse_orig, mse_default_scaled, mse_default_scaled_y, mse_linearly_scaled, mse_finally_scaled]
+        total_comparisons.append(comparisons)
+
+        plot_comparison = False
+        find_linear_coeffs = False
+        if plot_comparison:
+            # test plot
+            idx_to_plot = 0
+            fig, axs = plt.subplots(1, 2)
+            sample1 = Y_test[idx_to_plot][comparative_idx]
+            sample2 = Y_pred[idx_to_plot][comparative_idx]
+
+            axs[0].imshow(Y_test[idx_to_plot][comparative_idx])
+            axs[0].set_title(f'truth, max:{round(np.max(sample1), 2)}, min:{round(np.min(sample1), 2)}', fontsize=20)
+            axs[1].imshow(Y_pred[idx_to_plot][comparative_idx])
+            axs[1].set_title(f'predicted, max:{round(np.max(sample2), 2)}, min:{round(np.min(sample2), 2)}', fontsize=20)
+            plt.suptitle(f'yp:{app.TARGET_YP}, sample number: {idx_to_plot}', fontsize=20)
+
+        if find_linear_coeffs:
+            # # find the deviation by fitting linear model:
+            for slope_idx in range(3):
+                slope_total, intercept_total = 0, 0
+                for idx_to_plot in range(100):
+                    model = LinearRegression()
+                    model.fit(Y_pred[idx_to_plot][slope_idx].reshape(-1, 1), Y_test[idx_to_plot][slope_idx].reshape(-1, 1))
+                    # Get the coefficients
+                    slope, intercept = model.coef_[0], model.intercept_
+                    print(slope, intercept)
+                    slope_total += slope[0]
+                    intercept_total += intercept[0]
+                print(slope_total/100, intercept_total/100)
+
+        continue
         for i in tqdm(range(len(X_test))):
 
             # get closer to the MSE layer one by one and look for the bug:
             # output_mse = CNN_model.output[comparative_idx][:, 0, :, :]
-            # output_mse = tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :]))
+
+            # it has to go the other way - previously we scaled the output to match the scaled y, now the Y is unscaled
+            # a, b = linear_fit_coefs_yp15[comparative_idx, 0], linear_fit_coefs_yp15[comparative_idx, 1]
+            # first_layer = tf.cast(a*CNN_model.output[comparative_idx][:, 0, :, :], dtype=tf.float64)
+            # first_second_layer = first_layer+b
+            # output_mse = tf.math.square(tf.math.subtract(first_second_layer, Y_test[i][comparative_idx][None, :]))
+            # output_mse = tf.reduce_mean(second_layer, axis=(1, 2))
+
+            final_mean, final_std = final_std_mean_scale[comparative_idx][1], final_std_mean_scale[comparative_idx][0]
+            first_layer = tf.cast(final_std*CNN_model.output[comparative_idx][:, 0, :, :], dtype=tf.float64)
+            # first_second_layer = first_layer+final_mean  # in case of predicting the whole field instead of just fluctuations
+            output_mse_first = tf.math.square(tf.math.subtract(first_layer, Y_test[i][comparative_idx][None, :]))
+            output_mse = tf.reduce_mean(output_mse_first, axis=(1, 2))
+
+            # output_mse = tf.math.square(tf.math.subtract(a*CNN_model.output[comparative_idx][:, 0, :, :]+b, Y_test[i][comparative_idx][None, :]))
             # output_mse = tf.reduce_mean(tf.reduce_mean(tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :])), axis=-1), axis=-1)
 
-            output_mse = tf.reduce_mean(tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :])), axis=(1, 2))
+            # output_mse = tf.reduce_mean(tf.math.square(tf.math.subtract(a*CNN_model.output[comparative_idx][:, 0, :, :]+b, Y_test[i][comparative_idx][None, :])), axis=(1, 2))
 
             output_mse = tf.cast(output_mse, dtype=tf.float64)  # important to recast to float64, otherwise amplified numerical errors
             first_output_model = Model(inputs=CNN_model.input, outputs=output_mse)
@@ -198,8 +352,9 @@ if CHECK_MODEL_CORRECTNESS:
                 Y_pred_total = np.concatenate([Y_pred_total, Y_pred_next])
             z = 0
 
-        mse_orig_total.append(mse_orig)
-        test_mse = mse_orig - np.mean(Y_pred_total)
+        mse_total.append(mse_finally_scaled)
+        # test_mse = mse_orig - np.mean(Y_pred_total)
+        test_mse = mse_finally_scaled - np.mean(Y_pred_total)
         mse_total.append(test_mse)
 
     assert np.mean(np.array(mse_total)) < 1e-10
@@ -215,18 +370,22 @@ if CHECK_MODEL_CORRECTNESS:
 #
 #     for i in range(app.N_VARS_OUT):
 #         print('Rescale back component ' + str(i))
-#         Y_pred[:, i] *= model_config['rms'][i] \
-#                             [model_config['ypos_Ret'][str(app.TARGET_YP)]] / \
-#                         u_rms
-#         Y_test[:, i] *= model_config['rms'][i] \
-#                             [model_config['ypos_Ret'][str(app.TARGET_YP)]] / \
-#                         u_rms
+#         Y_pred[:, i] *= model_config['rms'][i][model_config['ypos_Ret'][str(app.TARGET_YP)]] / u_rms
+        # Y_test[:, i] *= model_config['rms'][i][model_config['ypos_Ret'][str(app.TARGET_YP)]] / u_rms
 
-# if pred_fluct == True:
-# for i in range(app.N_VARS_OUT):
-#     print('Adding back mean of the component '+str(i))
-#     Y_pred[:,i] = Y_pred[:,i] + avgs[i][model_config['ypos_Ret'][str(app.TARGET_YP)]]
-#     Y_test[:,i] = Y_test[:,i] + avgs[i][model_config['ypos_Ret'][str(app.TARGET_YP)]]
+        # for the second output - essentially at tfrecord_utils its *(1/this) so here its * as well just directly
+        # tf.cast(model_config['rms'][0][model_config['ypos_Ret'][str(app.TARGET_YP)]] /
+        #         model_config['rms'][1][model_config['ypos_Ret'][str(app.TARGET_YP)]], tf.float32)
+
+# if app.FLUCTUATIONS_PRED == True:
+#     for i in range(app.N_VARS_OUT):
+#         print('Adding back mean of the component '+str(i))
+#         Y_pred[:,i] = Y_pred[:,i] + avgs[i][model_config['ypos_Ret'][str(app.TARGET_YP)]]
+        # Y_test[:,i] = Y_test[:,i] + avgs[i][model_config['ypos_Ret'][str(app.TARGET_YP)]]
+
+        # what is done to test dataset:
+        # - avgs[2][ypos_Ret[str(target_yp)]]
+        # *scaling_coeff3
 
 
 
@@ -235,13 +394,28 @@ avg_inputs = np.broadcast_to(np.mean(np.mean(X_test, axis=-1, keepdims=True),
                              X_test.shape)
 # both are patches and should be examined why this version fails exactly
 shap.explainers._deep.deep_tf.op_handlers["FusedBatchNormV3"] = shap.explainers._deep.deep_tf.passthrough
+shap.explainers._deep.deep_tf.op_handlers["AddV2"] = shap.explainers._deep.deep_tf.passthrough
 # shap.explainers._deep.deep_tf.op_handlers["FusedBatchNormV3"] = shap.explainers._deep.deep_tf.linearity_1d(0)
 final_shap = []
 for comparative_idx in range(3):
     for i in tqdm(range(len(X_test))):
 
         # redefine the output to MSE
-        output_mse = tf.reduce_mean(tf.reduce_mean(tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :])), axis=-1), axis=-1)
+        # output_mse = tf.reduce_mean(tf.reduce_mean(tf.math.square(tf.math.subtract(CNN_model.output[comparative_idx][:, 0, :, :], Y_test[i][comparative_idx][None, :])), axis=-1), axis=-1)
+
+
+        # a, b = linear_fit_coefs_yp15[comparative_idx, 0], linear_fit_coefs_yp15[comparative_idx, 1]
+        # first_layer = tf.cast(tf.math.multiply(CNN_model.output[comparative_idx][:, 0, :, :], a), dtype=tf.float64)
+        # first_second_layer = tf.math.add(first_layer, b)
+        # output_mse_square = tf.math.square(tf.math.subtract(first_second_layer, Y_test[i][comparative_idx][None, :]))
+        # output_mse = tf.reduce_mean(output_mse_square, axis=(1, 2))
+
+        final_mean, final_std = final_std_mean_scale[comparative_idx][1], final_std_mean_scale[comparative_idx][0]
+        first_layer = tf.cast(final_std * CNN_model.output[comparative_idx][:, 0, :, :], dtype=tf.float64)
+        # first_second_layer = first_layer + final_mean
+        output_mse_first = tf.math.square(tf.math.subtract(first_layer, Y_test[i][comparative_idx][None, :]))
+        output_mse = tf.reduce_mean(output_mse_first, axis=(1, 2))
+
 
         # first_output_model_v1 = Model(inputs=CNN_model.input, outputs=tf.reshape(CNN_model.output[0][:, 0, :, :], [-1, 192*192]))
         first_output_model = Model(inputs=CNN_model.input, outputs=output_mse)
@@ -264,10 +438,13 @@ for comparative_idx in range(3):
 
 k = 0
 
-mean_shap = np.mean(np.abs(shap_values), axis=0)
+np.save(rf'final_shap_{app.TARGET_YP}.npy', np.array(final_shap))
+# np.save(r'./x_test_15.npy', X_test)
+# np.save(r'./y_test_15.npy', Y_test)
+mean_shap = np.mean(np.abs(shap_values_combined), axis=0)
 plt.figure(figsize=(4, 8))
 for i, img in enumerate(mean_shap):
-    plt.subplot(len(mean_shap[0]), 1, i+1)
+    plt.subplot(len(mean_shap), 1, i+1)
     plt.imshow(img, cmap='RdBu', vmin=np.min(img), vmax=np.max(img))
 plt.show()
 

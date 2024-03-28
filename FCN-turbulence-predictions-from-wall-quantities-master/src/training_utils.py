@@ -13,21 +13,25 @@ from tensorflow.keras.callbacks import TensorBoard
 from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler 
 
 #%% Configuration import
+# from conf.config_sample import WallRecon
 import config
+from fcn import cnn_model, thres_relu
 
-prb_def = os.environ.get('MODEL_CNN', None)
+# prb_def = os.environ.get('MODEL_CNN', None)
+#
+# if not prb_def:
+#     # raise ValueError('"MODEL_CNN" enviroment variable must be defined ("WallRecon" or "OuterRecon")')
+#     # print('"MODEL_CNN" enviroment variable not defined ("WallRecon" or "OuterRecon"), default value "WallRecon" is used')
+#     app = config.WallRecon
+#     prb_def = 'WallRecon'
+# elif prb_def == 'WallRecon':
+#     app = config.WallRecon
+# elif prb_def == 'OuterRecon':
+#     app = config.OuterRecon
+# else:
+#     raise ValueError('"MODEL_CNN" enviroment variable must be defined either as "WallRecon" or "OuterRecon"')
 
-if not prb_def:
-    # raise ValueError('"MODEL_CNN" enviroment variable must be defined ("WallRecon" or "OuterRecon")')
-    # print('"MODEL_CNN" enviroment variable not defined ("WallRecon" or "OuterRecon"), default value "WallRecon" is used')
-    app = config.WallRecon
-    prb_def = 'WallRecon'
-elif prb_def == 'WallRecon':
-    app = config.WallRecon
-elif prb_def == 'OuterRecon':
-    app = config.OuterRecon
-else:
-    raise ValueError('"MODEL_CNN" enviroment variable must be defined either as "WallRecon" or "OuterRecon"')
+app = config.WallRecon
 
 #%% Training utils
 
@@ -74,8 +78,6 @@ def step_decay(epoch):
    return lrate
 
 #%% FCN model
-
-from fcn import cnn_model, thres_relu
 
 def get_model(model_config):
     # Callbacks

@@ -9,7 +9,7 @@ from matplotlib.ticker import ScalarFormatter
 from skimage.transform import resize
 
 
-data_shap = np.load(r'final_shap_15.npy')
+data_shap = np.load(r'final_shap_15_older.npy')
 data_x = np.load(r'./x_test_15.npy')
 data_y = np.load(r'./y_test_15.npy')
 
@@ -33,10 +33,10 @@ for (x, y) in ranked_indices[int(0.9*len(ranked_indices)):]:
     new_img[x, y] = 1
 
 for (x, y) in ranked_indices[:int(0.1*len(ranked_indices))]:
-    new_img[x, y] = -1
+    new_img[x, y] = 1
 
 for (x_s, y_s) in ranked_indices_shap[int(0.9*len(ranked_indices_shap)):]:
-    new_img_shap[x_s, y_s] = 1
+    new_img_shap[x_s, y_s] = 2
 
 
 plt.imshow(new_img)

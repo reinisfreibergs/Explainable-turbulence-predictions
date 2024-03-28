@@ -150,7 +150,7 @@ def parser(rec,app,inpt,outpt,target_yp,ypos_Ret,
     else:
         return inputs, outputs
 
-def get_dataset(prb_def, app, timestamp, train=True, distributed_training=True):
+def get_dataset(prb_def, app, timestamp, train=True, distributed_training=False):
     #%% Reading from configuration
     # cur_path = app.CUR_PATH
     if train == True:
@@ -339,45 +339,69 @@ def get_dataset(prb_def, app, timestamp, train=True, distributed_training=True):
             samples_train_shared = samples_train_left
             n_samples_tfr_shared = n_samples_loaded_per_tfr[0]
 
-        tfr_files_train_ds = tfr_files_train_ds.interleave( 
-            lambda x : tf.data.TFRecordDataset(x).take(samples_train_shared) \
-            if tf.math.equal(x,shared_tfr_out) \
-            else tf.data.TFRecordDataset(x).take(tf.gather(n_samples_loaded_per_tfr, 
-            tf.strings.to_number(tf.strings.split(tf.strings.split(x, sep='_')[-1],
-            sep='-')[0], tf.int32)-1)),
-            cycle_length=16,
-            num_parallel_calls=tf.data.experimental.AUTOTUNE)
-
-        # Interleaving different TFRecords ---------------------------------------- 
-        tfr_files_val_ds = tfr_files_val_ds.interleave(
-            lambda x : tf.data.TFRecordDataset(x).skip(samples_train_shared).take(
-            n_samples_tfr_shared - samples_train_shared) \
-            if tf.math.equal(x,shared_tfr_out) \
-            else tf.data.TFRecordDataset(x).take(tf.gather(n_samples_loaded_per_tfr, 
-            tf.strings.to_number(tf.strings.split(tf.strings.split(x, sep='_')[-1],
-            sep='-')[0], tf.int32)-1)),
-            cycle_length=16,
-            num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        # tfr_files_train_ds = tfr_files_train_ds.interleave(
+        #     lambda x : tf.data.TFRecordDataset(x).take(samples_train_shared) \
+        #     if tf.math.equal(x,shared_tfr_out) \
+        #     else tf.data.TFRecordDataset(x).take(tf.gather(n_samples_loaded_per_tfr,
+        #     tf.strings.to_number(tf.strings.split(tf.strings.split(x, sep='_')[-1],
+        #     sep='-')[0], tf.int64)-1)),
+        #     cycle_length=16,
+        #     num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        #
+        # # Interleaving different TFRecords ----------------------------------------
+        # tfr_files_val_ds = tfr_files_val_ds.interleave(
+        #     lambda x : tf.data.TFRecordDataset(x).skip(samples_train_shared).take(
+        #     n_samples_tfr_shared - samples_train_shared) \
+        #     if tf.math.equal(x,shared_tfr_out) \
+        #     else tf.data.TFRecordDataset(x).take(tf.gather(n_samples_loaded_per_tfr,
+        #     tf.strings.to_number(tf.strings.split(tf.strings.split(x, sep='_')[-1],
+        #     sep='-')[0], tf.int64)-1)),
+        #     cycle_length=16,
+        #     num_parallel_calls=tf.data.experimental.AUTOTUNE)
     else:
-        tfr_files_X_test_ds = tf.data.Dataset.list_files(tfr_files, 
+        if app.TARGET_YP == 100:
+            # tfr_files = ['.\storage\Train\.tfrecords_singlefile_dt135_f32\Ret180_192x192x65_dt135_yp15_file000samples1500_001-of-003.tfrecords']
+            tfr_files = ['./storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp100_file000samples1500_001-of-009.tfrecords']
+            # tfr_files = ['./storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp100_file000samples1500_001-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp100_file000samples1500_002-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp100_file000samples1500_003-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp100_file000samples1500_004-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp100_file000samples1500_005-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp100_file000samples1500_006-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp100_file000samples1500_007-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp100_file000samples1500_008-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp100_file000samples1320_009-of-009.tfrecords']
+        else:
+            tfr_files = ['./storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp15_file000samples1500_001-of-009.tfrecords']
+            # tfr_files = ['./storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp15_file000samples1500_001-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp15_file000samples1500_002-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp15_file000samples1500_003-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp15_file000samples1500_004-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp15_file000samples1500_005-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp15_file000samples1500_006-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp15_file000samples1500_007-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp15_file000samples1500_008-of-009.tfrecords',
+            #              './storage/Test/.tfrecords_singlefile_test_dt45_f32/Ret180_192x192x65_dt45_yp15_file000samples1320_009-of-009.tfrecords']
+        tfr_files_X_test_ds = tf.data.Dataset.list_files(tfr_files,
                                                          shuffle=False)
         tfr_files_output_test_ds = tf.data.Dataset.list_files(tfr_files,
                                                          shuffle=False)
 
-        tfr_files_output_test_ds = tfr_files_output_test_ds.interleave(
-            lambda x : 
-            tf.data.TFRecordDataset(x).take(tf.gather(n_samples_loaded_per_tfr,
-            tf.strings.to_number(tf.strings.split(tf.strings.split(x, sep='_')[-1],
-            sep='-')[0], tf.int32)-1)),
-            cycle_length=1)
-        
-        tfr_files_X_test_ds = tfr_files_X_test_ds.interleave(
-            lambda x : 
-            tf.data.TFRecordDataset(x).take(tf.gather(n_samples_loaded_per_tfr,
-            tf.strings.to_number(tf.strings.split(tf.strings.split(x, sep='_')[-1],
-            sep='-')[0], tf.int32)-1)),
-            cycle_length=1)
-        
+        # tfr_files_output_test_ds = tfr_files_output_test_ds.interleave(
+        #     lambda x :
+        #     tf.data.TFRecordDataset(x).take(tf.gather(n_samples_loaded_per_tfr,
+        #     tf.strings.to_number(tf.strings.split(tf.strings.split(x, sep='_')[-1],
+        #     sep='-')[0], tf.int32)-1)),
+        #     cycle_length=1)
+        #
+        # tfr_files_X_test_ds = tfr_files_X_test_ds.interleave(
+        #     lambda x :
+        #     tf.data.TFRecordDataset(x).take(tf.gather(n_samples_loaded_per_tfr,
+        #     tf.strings.to_number(tf.strings.split(tf.strings.split(x, sep='_')[-1],
+        #     sep='-')[0], tf.int32)-1)),
+        #     cycle_length=1)
+
+    tfr_files_output_test_ds = tfr_files_output_test_ds.flat_map(lambda x: tf.data.TFRecordDataset(x))
     #%% Loading scaling values for inputs and outputs
     
     # Dictionary for the statistics files from Simson
