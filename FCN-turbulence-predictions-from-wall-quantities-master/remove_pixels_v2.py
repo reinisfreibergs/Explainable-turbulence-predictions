@@ -15,6 +15,9 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.utils import plot_model
 import shap
 from tqdm import tqdm
+from skimage.transform import resize
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.axes_grid1 import ImageGrid
 
 sys.path.insert(0, '../conf')
 sys.path.insert(0, '../models')
@@ -194,6 +197,75 @@ def create_final_plot_single_pixel(result_row):
     # plt.show()
 
 
+def create_final_plot_continous_pixels_fixed_full_reference_mse(result_row):
+    index_u_v_w, first_np, second_total, mse_total, true_value, ranked_indices, sample_idx, pixel_frequency, idxes = result_row
+
+    # u as 0 since that was the first selected -> finish with 9 plots
+    # index_u_v_w = 0
+
+    plt.figure(figsize=(18, 10))
+    reference_mse = np.mean((true_value - first_np.squeeze()) ** 2)
+    # ranked_indices_idxes = list(range(0, len(ranked_indices), pixel_frequency))
+    input_names = [r'$\tau_{wx}$ modified input', r'$\tau_{wz}$ modified input', r'$p_{w}$ modified input']
+    direction_names = ['u', 'v', 'w']
+    plt.hlines(y=0, xmin=0, xmax=max(idxes), colors='gray', linestyles='--')
+    for channel_idx in range(3):
+        # plt.plot(idxes, np.array((mse_total[channel_idx][:, index_u_v_w] - reference_mse)/reference_mse*100), label=input_names[channel_idx])
+        modified_image_mse = np.mean(mse_total[channel_idx], axis=-1)
+        relative_increase = (modified_image_mse - reference_mse)/reference_mse * 100
+
+        #  fix the coefs as true is (3,192, 192) but second_total is (3,10,3,192,192)
+
+        increase_images = np.mean((true_value - np.array(second_total)[channel_idx]) ** 2, axis=(1))
+
+        plt.plot(idxes, relative_increase, label=input_names[channel_idx], linewidth=2)
+
+        # lets look at one image and add the max error annotation
+        # max_pos = np.unravel_index(np.argmax(data), data.shape)
+        # max_value = data[max_pos]
+        #
+        # # Create the plot
+        # plt.imshow(data, cmap='viridis')
+        # plt.colorbar()
+        #
+        # # Add a pointer to the maximum value
+        # plt.annotate(f'Max: {max_value:.2f}', xy=max_pos, xytext=(max_pos[1] + 2, max_pos[0] - 2),
+        #              arrowprops=dict(facecolor='white', shrink=0.05, width=2))
+
+    plt.legend(fontsize=24)
+    plt.title(rf'Change in MSE of the ${direction_names[index_u_v_w]}$ prediction after removing a fraction of pixels ordered by absolute SHAP, sample idx: {sample_idx}', fontsize=24)
+    plt.xlabel(rf'Fraction of pixels removed from input', fontsize=24)
+    # plt.ylabel(rf'Relative increase in MSE, %', fontsize=24)
+    plt.title(r'Relative increase in MSE, %: $\frac{{\text{mse\_orig} - \text{mse\_removed}}}{{\text{mse\_orig}}} \times 100$', fontsize=24)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.tight_layout()
+    plt.savefig(rf'./fractions_removed_averaged/images/remove_pixels_by_fraction_abs_specific_yp{app.TARGET_YP}_{index_u_v_w}_sample_{sample_idx}_max_{np.max(fractions)}.png')
+    # plt.show()
+
+def explain_the_huge_increase_in_mse(result_row):
+    index_u_v_w, first_np, second_total, mse_total, true_value, ranked_indices, sample_idx, pixel_frequency, idxes = result_row
+
+    # u as 0 since that was the first selected -> finish with 9 plots
+    # index_u_v_w = 0
+
+    plt.figure(figsize=(22, 10))
+    # this reference mse describes only the error in that particular channel
+    reference_mse = np.mean((true_value[index_u_v_w] - first_np[0, index_u_v_w]) ** 2)
+    # ranked_indices_idxes = list(range(0, len(ranked_indices), pixel_frequency))
+    reference_mse_full = np.mean((true_value - first_np.squeeze()) ** 2)
+
+    for channel_idx in range(3):
+        relative_increases = np.array((mse_total[channel_idx][:, index_u_v_w] - reference_mse)/reference_mse*100)
+        relative_increases_img = true_value[index_u_v_w] - second_total[channel_idx][:, index_u_v_w]
+
+        # most points removed image
+        img_most_removed = second_total[channel_idx][-1]  # (3, 192, 192)
+
+
+        np.mean((true_value - second_np) ** 2, axis=(2, 3))
+
+
 data_shap = np.load(rf'final_shap_{app.TARGET_YP}.npy')
 data_x = np.load(rf'./x_test_{app.TARGET_YP}.npy')
 data_y = np.load(rf'./y_test_{app.TARGET_YP}.npy')
@@ -267,11 +339,156 @@ def create_modified_prediction_continuous_pixels(sample_idx=0, pixel_frequency=1
     return index_u_v_w, first_np, second_total, mse_total, true_value, ranked_indices, sample_idx, pixel_frequency, fractions
 
 
-for fractions in [list(np.linspace(0, 1, 1000)), list(np.linspace(0, 0.1, 1000))]:
-    for index_uvw in range(3):
-        result_row = create_modified_prediction_continuous_pixels(sample_idx=0, pixel_frequency=100, index_u_v_w=index_uvw, fractions=fractions)
-        create_final_plot_single_pixel(result_row)
 
+def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w = 0, fractions = [0]):
+    # v1 - remove the n-th most important pixel and track the change in mse.
+
+    mse_total = []
+    second_total = []
+    true_total = []
+    input_total = []
+    true_value = np.array(Y_test[sample_idx])
+    first = CNN_model.predict(data_x[sample_idx][None, :])
+    # use only the last pressure channel
+    for channel in [2]:
+
+        ranked_indices = np.array(np.unravel_index(np.argsort(np.abs(data_shap)[index_u_v_w][sample_idx][channel].flatten()), data_shap[index_u_v_w][sample_idx][channel].shape)).T
+        current_mean = np.mean(X_test[sample_idx], axis=(-1, -2))
+
+        modified_img = np.array(X_test[sample_idx])
+        # use every 100th for now as every single one will be too much
+        for idx, fraction in enumerate(fractions):
+
+            # here instead of replacing the single pixel replace all until reaching the fraction
+            modified_img = replace_fraction_of_pixels(modified_img.squeeze(),
+                                                      fraction=fraction,
+                                                      background_value=current_mean[channel],
+                                                      ranked_indices=ranked_indices,
+                                                      channel=channel)
+
+
+            modified_img = modified_img[None, :]
+            if idx == 0:
+                modified_img_total = modified_img
+            else:
+                modified_img_total = np.concatenate((modified_img_total, modified_img))
+            # modified_img[channel][ranked_indices[pix_idx][0], ranked_indices[pix_idx][1]] = current_mean[0]
+
+
+        second = CNN_model.predict(modified_img_total, batch_size=2)
+
+
+        fig = plt.figure(figsize=(24, 16))
+        axs = ImageGrid(fig, 111,
+                         nrows_ncols=(2, 2),
+                         cbar_location="right",
+                         cbar_mode='edge',
+                         direction='row',
+                         cbar_size="5%",
+                         cbar_pad=0.2,
+                         share_all=True,
+                         axes_pad=0.4
+                         )
+        # fig, axs = plt.subplots(2, 2, figsize=(18, 10))
+
+        vmin = np.min(resize(data_x[sample_idx][2, 15:-15, 15:-15], (178, 356)))
+        vmax = np.max(resize(data_x[sample_idx][2, 15:-15, 15:-15], (178, 356)))
+
+        vmin3 = np.min(resize(first[0][0][0], (208, 416)))
+        vmax3 = np.max(resize(first[0][0][0], (208, 416)))
+
+        im1 = axs[0].imshow(resize(data_x[sample_idx][2, 15:-15, 15:-15], (178, 356)), cmap='RdBu_r', vmin=vmin,
+                               vmax=vmax, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])
+
+        im2 = axs[1].imshow(resize(modified_img_total.squeeze()[2, 15:-15, 15:-15], (178, 356)), cmap='RdBu_r',
+                               vmin=vmin, vmax=vmax, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])  # modified input
+
+        im3 = axs[2].imshow(resize(first[0][0][0], (208, 416)), cmap='RdBu_r', vmin=vmin3, vmax=vmax3, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])  # original prediction
+
+        im4 = axs[3].imshow(resize(second[0][0][0], (208, 416)), cmap='RdBu_r', vmin=vmin3, vmax=vmax3, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])
+
+        axs[0].set_title('Original $p_w$ input', fontsize=24)
+        axs[1].set_title('Modified $p_w$ input', fontsize=24)
+        axs[2].set_title('Original $u$ prediction', fontsize=24)
+        axs[3].set_title('Modified $u$ prediction', fontsize=24)
+
+        axs[0].set_ylabel(r'$z/h$', fontsize=24)
+        axs[2].set_ylabel(r'$z/h$', fontsize=24)
+        axs[2].set_xlabel(r'$x/h$', fontsize=24)
+        axs[3].set_xlabel(r'$x/h$', fontsize=24)
+
+        # plt.subplots_adjust(wspace=0.3, hspace=0.3)
+        cbar1 = plt.colorbar(im2, cax=axs.cbar_axes[0])
+        cbar2 = plt.colorbar(im4, cax=axs.cbar_axes[1])
+        cbar1.ax.tick_params(labelsize=18)
+        cbar2.ax.tick_params(labelsize=18)
+
+        custom_ticks = [vmin3, -0.2, -0.1, 0, 0.1, 0.2, vmax3]
+
+        # Set the ticks and custom formatted labels
+        cbar2.set_ticks(custom_ticks)
+        cbar2.set_ticklabels(
+            [f'min={vmin3:.2f}' if tick == vmin3 else (f'max={vmax3:.2f}' if tick == vmax3 else f'{tick:.2f}') for tick
+             in custom_ticks])
+
+        max_pos = np.unravel_index(np.argmax(resize(second[0][0][0], (208, 416))), resize(second[0][0][0], (208, 416)).shape)
+        max_value = resize(second[0][0][0], (208, 416))[max_pos]
+        extent = [-2 * np.pi, 2 * np.pi, -np.pi, np.pi]
+        # Convert pixel coordinates to data coordinates
+        x_max = extent[0] + (extent[1] - extent[0]) * max_pos[1] / 416
+        y_max = extent[2] + (extent[3] - extent[2]) * (208 - max_pos[0]) / 208
+
+
+        # Add a pointer to the maximum value
+        axs[3].annotate(f'max pred: {max_value:.2f}', xy=(x_max, y_max), xytext=(x_max + 0.4, y_max + 0.4),
+                        arrowprops=dict(facecolor='white', shrink=0.05, width=2),
+                        bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="white"), fontsize=17)
+
+        for ax in axs:
+            ax.tick_params(labelsize=18)
+
+        # scatter the replaced values to be better visible
+        y_ranked_indices = ranked_indices[-(int(0.01 * len(ranked_indices)) + 1):][:, 0] - 15
+        x_ranked_indices = 2*ranked_indices[-(int(0.01 * len(ranked_indices)) + 1):][:, 1] - 30
+        valid_points = (x_ranked_indices >= 0) * (x_ranked_indices < 356) * (y_ranked_indices >= 0) * (y_ranked_indices < 178)
+        x_ranked_indices = x_ranked_indices[valid_points]
+        y_ranked_indices = y_ranked_indices[valid_points]
+        x_ranked_indices_scaled = extent[0] + (extent[1] - extent[0]) * x_ranked_indices / 356
+        y_ranked_indices_scaled = extent[2] + (extent[3] - extent[2]) * (178 - y_ranked_indices) / 178
+
+        axs[1].scatter(x_ranked_indices_scaled, y_ranked_indices_scaled, s=6, c='black', marker=',')
+
+
+        # Calculate the position for the text label
+        bbox = cbar2.ax.get_position()
+        x_pos = bbox.x0 + bbox.width / 2
+        y_pos = bbox.y1 + 0.01
+        # Add a text label just above the lower colorbar
+        fig.text(x_pos, y_pos, f'Values capped at original max', ha='center', va='bottom', rotation=0, fontsize=16)
+
+
+        plt.savefig(f'./images/one_percent_removal_pressure_yp_{config.WallRecon.TARGET_YP}_top_{fractions[0]}_v2.png', dpi=1200, bbox_inches='tight')
+        k = 0
+
+
+        # now save the second side-by-side comparison plot with the absolute difference vs removed pixels
+
+
+
+
+
+
+    # return index_u_v_w, first_np, second_total, mse_total, true_value, ranked_indices, sample_idx, pixel_frequency, fractions
+
+# for fractions in [list(np.linspace(0, 1, 10)), list(np.linspace(0, 0.1, 10))]:
+#     for index_uvw in range(3):
+#         result_row = create_modified_prediction_continuous_pixels(sample_idx=0, pixel_frequency=100, index_u_v_w=index_uvw, fractions=fractions)
+#         # create_final_plot_single_pixel(result_row)
+#         create_final_plot_continous_pixels_fixed_full_reference_mse(result_row)
+
+# for frac in tqdm([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.999]):
+for frac in tqdm([0.01]):
+    create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w=0, fractions=[frac])
 
 k = 0
 
