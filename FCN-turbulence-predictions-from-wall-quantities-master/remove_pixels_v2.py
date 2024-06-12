@@ -18,6 +18,8 @@ from tqdm import tqdm
 from skimage.transform import resize
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1 import ImageGrid
+from matplotlib.colors import TwoSlopeNorm
+from matplotlib.ticker import MaxNLocator
 
 sys.path.insert(0, '../conf')
 sys.path.insert(0, '../models')
@@ -391,21 +393,21 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
                          )
         # fig, axs = plt.subplots(2, 2, figsize=(18, 10))
 
-        vmin = np.min(resize(data_x[sample_idx][2, 15:-15, 15:-15], (178, 356)))
-        vmax = np.max(resize(data_x[sample_idx][2, 15:-15, 15:-15], (178, 356)))
+        vmin = np.min(resize(data_x[sample_idx][2, 8:-8, 8:-8], (192, 384)))
+        vmax = np.max(resize(data_x[sample_idx][2, 8:-8, 8:-8], (192, 384)))
 
-        vmin3 = np.min(resize(first[0][0][0], (208, 416)))
-        vmax3 = np.max(resize(first[0][0][0], (208, 416)))
+        vmin3 = np.min(resize(first[0][0][0], (192, 384)))
+        vmax3 = np.max(resize(first[0][0][0], (192, 384)))
 
-        im1 = axs[0].imshow(resize(data_x[sample_idx][2, 15:-15, 15:-15], (178, 356)), cmap='RdBu_r', vmin=vmin,
+        im1 = axs[0].imshow(resize(data_x[sample_idx][2, 8:-8, 8:-8], (192, 384)), cmap='RdBu_r', vmin=vmin,
                                vmax=vmax, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])
 
-        im2 = axs[1].imshow(resize(modified_img_total.squeeze()[2, 15:-15, 15:-15], (178, 356)), cmap='RdBu_r',
+        im2 = axs[1].imshow(resize(modified_img_total.squeeze()[2, 8:-8, 8:-8], (192, 384)), cmap='RdBu_r',
                                vmin=vmin, vmax=vmax, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])  # modified input
 
-        im3 = axs[2].imshow(resize(first[0][0][0], (208, 416)), cmap='RdBu_r', vmin=vmin3, vmax=vmax3, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])  # original prediction
+        im3 = axs[2].imshow(resize(first[0][0][0], (192, 384)), cmap='RdBu_r', vmin=vmin3, vmax=vmax3, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])  # original prediction
 
-        im4 = axs[3].imshow(resize(second[0][0][0], (208, 416)), cmap='RdBu_r', vmin=vmin3, vmax=vmax3, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])
+        im4 = axs[3].imshow(resize(second[0][0][0], (192, 384)), cmap='RdBu_r', vmin=vmin3, vmax=vmax3, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])
 
         axs[0].set_title('Original $p_w$ input', fontsize=24)
         axs[1].set_title('Modified $p_w$ input', fontsize=24)
@@ -431,12 +433,12 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
             [f'min={vmin3:.2f}' if tick == vmin3 else (f'max={vmax3:.2f}' if tick == vmax3 else f'{tick:.2f}') for tick
              in custom_ticks])
 
-        max_pos = np.unravel_index(np.argmax(resize(second[0][0][0], (208, 416))), resize(second[0][0][0], (208, 416)).shape)
-        max_value = resize(second[0][0][0], (208, 416))[max_pos]
+        max_pos = np.unravel_index(np.argmax(resize(second[0][0][0], (192, 384))), resize(second[0][0][0], (192, 384)).shape)
+        max_value = resize(second[0][0][0], (192, 384))[max_pos]
         extent = [-2 * np.pi, 2 * np.pi, -np.pi, np.pi]
         # Convert pixel coordinates to data coordinates
-        x_max = extent[0] + (extent[1] - extent[0]) * max_pos[1] / 416
-        y_max = extent[2] + (extent[3] - extent[2]) * (208 - max_pos[0]) / 208
+        x_max = extent[0] + (extent[1] - extent[0]) * max_pos[1] / 384
+        y_max = extent[2] + (extent[3] - extent[2]) * (192 - max_pos[0]) / 192
 
 
         # Add a pointer to the maximum value
@@ -448,13 +450,13 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
             ax.tick_params(labelsize=18)
 
         # scatter the replaced values to be better visible
-        y_ranked_indices = ranked_indices[-(int(0.01 * len(ranked_indices)) + 1):][:, 0] - 15
-        x_ranked_indices = 2*ranked_indices[-(int(0.01 * len(ranked_indices)) + 1):][:, 1] - 30
-        valid_points = (x_ranked_indices >= 0) * (x_ranked_indices < 356) * (y_ranked_indices >= 0) * (y_ranked_indices < 178)
+        y_ranked_indices = ranked_indices[-(int(0.01 * len(ranked_indices)) + 1):][:, 0] - 8
+        x_ranked_indices = 2*ranked_indices[-(int(0.01 * len(ranked_indices)) + 1):][:, 1] - 16
+        valid_points = (x_ranked_indices >= 0) * (x_ranked_indices < 384) * (y_ranked_indices >= 0) * (y_ranked_indices < 192)
         x_ranked_indices = x_ranked_indices[valid_points]
         y_ranked_indices = y_ranked_indices[valid_points]
-        x_ranked_indices_scaled = extent[0] + (extent[1] - extent[0]) * x_ranked_indices / 356
-        y_ranked_indices_scaled = extent[2] + (extent[3] - extent[2]) * (178 - y_ranked_indices) / 178
+        x_ranked_indices_scaled = extent[0] + (extent[1] - extent[0]) * x_ranked_indices / 384
+        y_ranked_indices_scaled = extent[2] + (extent[3] - extent[2]) * (192 - y_ranked_indices) / 192
 
         axs[1].scatter(x_ranked_indices_scaled, y_ranked_indices_scaled, s=6, c='black', marker=',')
 
@@ -471,7 +473,49 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
         k = 0
 
 
+
+
+
+
         # now save the second side-by-side comparison plot with the absolute difference vs removed pixels
+        difference_image = resize(second[index_u_v_w].squeeze(), (192, 384)) - resize(first[index_u_v_w].squeeze(), (192, 384))
+        difference_image = difference_image * (1*np.abs(difference_image) > 0.0001)
+        norm = TwoSlopeNorm(
+            vmin=np.min(difference_image),
+            vcenter=0,
+            vmax=np.max(difference_image))
+        fig_diff, ax_diff = plt.subplots(figsize=(12, 6))
+        diff_img = ax_diff.imshow(difference_image, cmap='RdBu_r', extent=[-2 * np.pi, 2 * np.pi, -np.pi, np.pi], norm=norm)
+        ax_diff.scatter(x_ranked_indices_scaled, y_ranked_indices_scaled, s=6, c='green', marker=',', alpha=0.4)
+        # plt.colorbar(diff_img)
+
+
+        divider = make_axes_locatable(ax_diff)
+        cax = divider.append_axes("right", size="5%", pad=0.1)
+        cbar = fig_diff.colorbar(diff_img, cax=cax, spacing='proportional')
+        cbar.ax.set_yscale('linear')
+        cbar.ax.tick_params(labelsize=18)
+
+        ticks = np.concatenate((np.linspace(np.min(difference_image), 0, num=2), np.linspace(0, np.max(difference_image), num=6)[1:]))
+        cbar.set_ticks(ticks)
+        cbar.set_ticklabels([f'{tick:.2f}' for tick in ticks])
+
+
+        # Adjust the layout to match the height
+        ax_diff.set_aspect(aspect='auto')
+        ax_diff.tick_params(labelsize=18)
+        ax_diff.set_ylabel(r'$z/h$', fontsize=24)
+        ax_diff.set_xlabel(r'$x/h$', fontsize=24)
+        ax_diff.set_title('Difference between $u$ prediction with modified and original $p_w$ input \n $u_{baseline_{p_w}} - u_{modified_{p_w}}$',
+                          fontsize=22)
+
+        plt.savefig(f'./images/one_percent_removal_pressure_yp_{config.WallRecon.TARGET_YP}_top_{fractions[0]}_v2_comparison_alpha04.png',
+                    dpi=1200, bbox_inches='tight')
+
+
+
+        # finally make side-by-side images with true-original and true-modified
+
 
 
 
