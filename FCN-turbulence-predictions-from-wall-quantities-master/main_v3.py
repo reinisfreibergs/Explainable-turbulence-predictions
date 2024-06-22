@@ -232,7 +232,7 @@ def default_scale_predicted_output(pred_init):
     return pred
 
 
-CHECK_MODEL_CORRECTNESS = True
+CHECK_MODEL_CORRECTNESS = False
 if CHECK_MODEL_CORRECTNESS:
     if app.N_VARS_OUT == 3:
         # reduce batch size for smaller gpu

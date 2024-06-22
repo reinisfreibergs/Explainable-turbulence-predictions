@@ -295,7 +295,7 @@ def create_modified_prediction_continuous_pixels(sample_idx=0, pixel_frequency=1
     second_total = []
     true_total = []
     input_total = []
-    true_value = np.array(Y_test[sample_idx])
+    true_value = np.array(data_y[sample_idx])
     first = CNN_model.predict(data_x[sample_idx][None, :])
     for channel in range(3):
 
@@ -322,7 +322,7 @@ def create_modified_prediction_continuous_pixels(sample_idx=0, pixel_frequency=1
             # modified_img[channel][ranked_indices[pix_idx][0], ranked_indices[pix_idx][1]] = current_mean[0]
 
 
-        second = CNN_model.predict(modified_img_total, batch_size=2)
+        second = CNN_model.predict(modified_img_total, batch_size=8)
 
         final_mean, final_std = default_scale[:, 1], default_scale[:, 0]
         first_np = final_std[None, :, None, None] * np.concatenate(first, axis=1)
@@ -450,8 +450,8 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
             ax.tick_params(labelsize=18)
 
         # scatter the replaced values to be better visible
-        y_ranked_indices = ranked_indices[-(int(0.01 * len(ranked_indices)) + 1):][:, 0] - 8
-        x_ranked_indices = 2*ranked_indices[-(int(0.01 * len(ranked_indices)) + 1):][:, 1] - 16
+        y_ranked_indices = ranked_indices[-(int(fractions[0] * len(ranked_indices)) + 1):][:, 0] - 8
+        x_ranked_indices = 2*ranked_indices[-(int(fractions[0] * len(ranked_indices)) + 1):][:, 1] - 16
         valid_points = (x_ranked_indices >= 0) * (x_ranked_indices < 384) * (y_ranked_indices >= 0) * (y_ranked_indices < 192)
         x_ranked_indices = x_ranked_indices[valid_points]
         y_ranked_indices = y_ranked_indices[valid_points]
@@ -517,12 +517,35 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
         # finally make side-by-side images with true-original and true-modified
 
 
+def create_mean_final_plot_continous_pixels_fixed_full_reference_mse():
+
+    for index_uvw in range(3):
+        relative_increases = [np.array([]), np.array([]), np.array([])]
+        for sample_idx in tqdm(range(100)):
+            result_row_init = np.load(f'./result_rows_yp_{app.TARGET_YP}/result_row_uvw_{index_uvw}_sample_{sample_idx}.npz')
+            result_row = [result_row_init[key] for key in result_row_init]
 
 
+            index_u_v_w, first_np, second_total, mse_total, true_value, ranked_indices, sample_idx, pixel_frequency, idxes = result_row
+            reference_mse = np.mean((true_value - first_np.squeeze()) ** 2)
+            for channel_idx in range(3):
+                modified_image_mse = np.mean(mse_total[channel_idx], axis=-1)
+                relative_increase = (modified_image_mse - reference_mse) / reference_mse * 100
+
+                if int(sample_idx) == 0:
+                    relative_increases[channel_idx] = relative_increase
+                else:
+                    relative_increases[channel_idx] = np.vstack((relative_increases[channel_idx], relative_increase))
+
+            k = 0
+        k = 0
 
 
 
     # return index_u_v_w, first_np, second_total, mse_total, true_value, ranked_indices, sample_idx, pixel_frequency, fractions
+# loaded = np.load('./result_row.npz')
+# loaded_arrays = [loaded[key] for key in loaded]
+# Extract the arrays from the loaded object
 
 # for fractions in [list(np.linspace(0, 1, 10)), list(np.linspace(0, 0.1, 10))]:
 #     for index_uvw in range(3):
@@ -530,8 +553,18 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
 #         # create_final_plot_single_pixel(result_row)
 #         create_final_plot_continous_pixels_fixed_full_reference_mse(result_row)
 
+# second version with averaging over many samples
+# for sample_idx in tqdm(range(len(data_x))):
+#     fractions = np.linspace(0, 1, 100, endpoint=True)
+#     for index_uvw in range(3):
+#         if not os.path.exists(f'./result_rows_yp_{app.TARGET_YP}/result_row_uvw_{index_uvw}_sample_{sample_idx}.npz'):
+#             result_row = create_modified_prediction_continuous_pixels(sample_idx=sample_idx, pixel_frequency=100, index_u_v_w=index_uvw, fractions=fractions)
+#             np.savez(f'./result_rows_yp_{app.TARGET_YP}/result_row_uvw_{index_uvw}_sample_{sample_idx}.npz', *result_row)
+# create_mean_final_plot_continous_pixels_fixed_full_reference_mse()
+
+
 # for frac in tqdm([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.999]):
-for frac in tqdm([0.01]):
+for frac in tqdm([0.01, 0.1, 0.4, 0.9]):
     create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w=0, fractions=[frac])
 
 k = 0

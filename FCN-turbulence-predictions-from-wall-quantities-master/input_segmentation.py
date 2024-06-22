@@ -17,7 +17,7 @@ from matplotlib.ticker import MaxNLocator, ScalarFormatter, FormatStrFormatter, 
 matplotlib.rc('xtick', labelsize=16)
 matplotlib.rc('ytick', labelsize=16)
 
-yp = 100
+yp = 15
 data_shap = np.load(rf'final_shap_{yp}.npy')
 data_x = np.load(rf'./x_test_{yp}.npy')
 data_y = np.load(rf'./y_test_{yp}.npy')
@@ -27,19 +27,25 @@ mean_shap = np.mean(np.abs(data_shap), axis=1)
 mean_x = np.mean(data_x, axis=0)
 
 result_dict = {'area': [], 'length': [], 'height': [], 'original_abs_sum': [], 'original_sum': [],
-                    'shap_abs_sum': [], 'shap_sum': [], 'sample_idx': [], 'channel': [], 'uvw': []}
+                    'shap_abs_sum': [], 'shap_sum': [], 'sample_idx': [], 'channel': [], 'uvw': [],  'output_abs_sum': [], 'output_sum': [], 'mean_minimum_dist_to_wall': []}
+
 
 
 for u_v_w in range(3):
     for channel in range(3):
-        for sample_idx in tqdm(range(len(data_x))):
-        # for sample_idx in tqdm(range(100)):
+        # for sample_idx in tqdm(range(len(data_x))):
+        for sample_idx in tqdm(range(100)):
 
-            sample = data_x[sample_idx][channel]
+            sample = data_x[sample_idx][channel][8:-8, 8:-8]
+            sample_output = data_y[sample_idx][u_v_w]
 
-            sample_shap = data_shap[u_v_w][sample_idx][channel]
+            sample_shap = data_shap[u_v_w][sample_idx][channel][8:-8, 8:-8]
             # ranked_indices = np.array(np.unravel_index(np.argsort(np.abs(sample).flatten()), sample.shape)).T
-            ranked_indices = np.array(np.unravel_index(np.argsort((sample).flatten()), sample.shape)).T
+
+            # ranked_indices = np.array(np.unravel_index(np.argsort(np.abs(sample).flatten()), sample.shape)).T
+
+            ranked_indices = np.array(np.unravel_index(np.argsort(np.abs(sample_shap).flatten()), sample_shap.shape)).T
+
             # ranked_indices_shap = np.array(np.unravel_index(np.argsort(np.abs(data_shap)[u_v_w][sample_idx][channel].flatten()),
             #                                            data_shap[u_v_w][sample_idx][channel].shape)).T
 
@@ -73,8 +79,8 @@ for u_v_w in range(3):
             for (x, y) in ranked_indices[int(0.8*len(ranked_indices)):]:
                 new_img_mask[x, y] = 1
 
-            for (x, y) in ranked_indices[:int(0.2*len(ranked_indices))]:
-                new_img_mask[x, y] = 1
+            # for (x, y) in ranked_indices[:int(0.2*len(ranked_indices))]:
+            #     new_img_mask[x, y] = 1
 
 
             original_selected_structures = new_img_mask * np.array(sample)
@@ -82,8 +88,8 @@ for u_v_w in range(3):
 
             # result_dict = {'area': [], 'length': [], 'height': [], 'original_abs_sum': [], 'original_sum': [], 'shap_abs_sum': [], 'shap_sum': [], 'sample_idx': [], 'channel': [], 'uvw': []}
             # calculate all the variables now, later can filter by minimum pixel count - better to collect all data and remove some after than not have at all
-            zeros_image = np.zeros((208, 416))
-            zeros_image_2 = np.zeros_like(zeros_image)
+            # zeros_image = np.zeros((208, 416))
+            # zeros_image_2 = np.zeros_like(zeros_image)
             for struct_idx in range(1, num_features+1):
                 area = np.sum(struct_labels == struct_idx)
                 # find the length as the maximum positive value along x axis
@@ -95,13 +101,18 @@ for u_v_w in range(3):
                 # calculate the original sum of variables over the found structure
                 individual_orig_struct = (struct_labels == struct_idx) * np.array(sample)
                 individual_orig_struct_shap = (struct_labels == struct_idx) * np.array(sample_shap)
-                original_abs_sum = np.sum(individual_orig_struct)
+                individual_orig_struct_output = (struct_labels == struct_idx) * np.array(sample_output)
+                original_sum = np.sum(individual_orig_struct)
                 # for now take abs values - otherwise if symmetric around zero will cancel out
-                original_sum = np.sum(np.abs(individual_orig_struct))
+                original_abs_sum = np.sum(np.abs(individual_orig_struct))
 
                 shap_abs_sum = np.sum(np.abs(individual_orig_struct_shap))
                 shap_sum = np.sum(individual_orig_struct_shap)
 
+                output_abs_sum = np.sum(np.abs(individual_orig_struct_output))
+                output_sum = np.sum(individual_orig_struct_output)
+
+                mean_minimum_dist_to_wall = np.mean(np.min(np.array([x, y]), axis=0))
                 # if area > 20:
                 #     zeros_image = zeros_image + resize(individual_orig_struct, (208, 416))
                 #     zeros_image_2 = zeros_image_2 + resize((1 * (individual_orig_struct != 0)) * shap_abs_sum, (208, 416))
@@ -113,9 +124,12 @@ for u_v_w in range(3):
                 result_dict['original_sum'].append(original_sum)
                 result_dict['shap_abs_sum'].append(shap_abs_sum)
                 result_dict['shap_sum'].append(shap_sum)
+                result_dict['output_abs_sum'].append(output_abs_sum)
+                result_dict['output_sum'].append(output_sum)
                 result_dict['sample_idx'].append(sample_idx)
                 result_dict['channel'].append(channel)
                 result_dict['uvw'].append(u_v_w)
+                result_dict['mean_minimum_dist_to_wall'].append(mean_minimum_dist_to_wall)
 
             CREATE_STRUCTURE_PLOTS = False
             if CREATE_STRUCTURE_PLOTS:
@@ -215,6 +229,7 @@ for u_v_w in range(3):
 # np.save(f'structure_stats_abs_inputs_yp{yp}.npy', result_dict_full)
 # save the full result dict as pd
 df = pd.DataFrame(result_dict)
-df.to_csv(f'structure_stats_raw_inputs_yp{yp}_top10_min10.csv')
+# df.to_csv(f'structure_stats_raw_inputs_yp{yp}_top10_min10.csv')
+df.to_csv(f'structure_stats_abs_inputs_yp{yp}_top20_with_outputs_ranked_by_shap.csv')
 
 k = 0
