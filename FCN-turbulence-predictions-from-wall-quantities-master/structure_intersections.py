@@ -35,16 +35,16 @@ for u_v_w in range(3):
     for channel in range(3):
         # for sample_idx in tqdm(range(len(data_x))):
         score = []
-        for sample_idx in range(10):
+        for sample_idx in range(len(data_x)):
 
-            sample = data_x[sample_idx][channel]
-            sample_shap = data_shap[u_v_w][sample_idx][channel]
-            sample_output = data_y[sample_idx][channel]
-            ranked_indices_output = np.array(np.unravel_index(np.argsort((sample_output).flatten()), sample.shape)).T
-            # ranked_indices = np.array(np.unravel_index(np.argsort(np.abs(sample).flatten()), sample.shape)).T
+            sample = data_x[sample_idx][channel][8:-8, 8:-8]
+            sample_shap = data_shap[u_v_w][sample_idx][channel][8:-8, 8:-8]
+            sample_output = data_y[sample_idx][u_v_w]
+            ranked_indices_output = np.array(np.unravel_index(np.argsort(np.abs(sample_output).flatten()), sample.shape)).T
             ranked_indices = np.array(np.unravel_index(np.argsort(np.abs(sample).flatten()), sample.shape)).T
-            ranked_indices_shap = np.array(np.unravel_index(np.argsort(np.abs(data_shap)[u_v_w][sample_idx][channel].flatten()),
-                                                       data_shap[u_v_w][sample_idx][channel].shape)).T
+            # ranked_indices = np.array(np.unravel_index(np.argsort(np.abs(sample).flatten()), sample.shape)).T
+            ranked_indices_shap = np.array(np.unravel_index(np.argsort(np.abs(sample_shap).flatten()),
+                                                       sample_shap.shape)).T
 
             new_img = np.zeros_like(sample)
             new_img_shap = np.zeros_like(sample)
@@ -58,20 +58,20 @@ for u_v_w in range(3):
                 # for (x, y) in ranked_indices[:int(0.1*len(ranked_indices))]:
                 #     new_img[x, y] += 1
 
-                for (x_s, y_s) in ranked_indices_shap[int(0.9*len(ranked_indices_shap)):]:
+                for (x_s, y_s) in ranked_indices_shap[int(0.8*len(ranked_indices_shap)):]:
                     new_img[x_s, y_s] += 2
 
                 plt.imshow(new_img)
                 # plt.imshow(new_img_shap, alpha=0.6)
 
 
-            shap_list = ranked_indices_shap[int(0.9*len(ranked_indices_shap)):]
-            input_list = ranked_indices[int(0.9*len(ranked_indices)):]
-            output_list = ranked_indices_output[int(0.9*len(ranked_indices_output)):]
+            shap_list = ranked_indices_shap[int(0.8*len(ranked_indices_shap)):]
+            input_list = ranked_indices[int(0.8*len(ranked_indices)):]
+            output_list = ranked_indices_output[int(0.8*len(ranked_indices_output)):]
 
             # Convert the numpy arrays to sets of tuples
-            # set1 = set(map(tuple, input_list))
-            set1 = set(map(tuple, output_list))
+            set1 = set(map(tuple, input_list))
+            # set1 = set(map(tuple, output_list))
             set2 = set(map(tuple, shap_list))
 
             # Find the intersection of the two sets
@@ -80,4 +80,4 @@ for u_v_w in range(3):
             score.append(intersection_len)
             k = 0
 
-        print(f'channel: {channel} uvw: {u_v_w} score: {np.mean(score)}, relative_score: {np.mean(score)/len(input_list)}')
+        print(f'channel: {channel} uvw: {u_v_w} score: {np.mean(score)}, score_std: {np.std(score)}, relative_score: {np.mean(score)/len(input_list)}, relative_score_std: {np.std(score)/len(input_list)}')
