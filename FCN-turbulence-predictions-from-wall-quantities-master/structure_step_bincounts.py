@@ -48,13 +48,33 @@ yp = 15
 # data_filtered_2 = data_input_2[data_input_2['area'] > 15]
 
 
+SAVE_MODE = False
+area_limit = 13
 for uvw in range(3):
     for channel in tqdm(range(3)):
-        data_input = pd.read_csv(
-            rf".\structure_data\structure_stats_abs_inputs_yp15_channel_{channel}_uvw_{uvw}_outputs_ranked_by_shap_step_by_10_area_15.csv")
+
         data_input_full = pd.read_csv(
             rf".\structure_data\structure_stats_abs_inputs_yp15_channel_{channel}_uvw_{uvw}_outputs_ranked_by_shap_step_by_10.csv")
-        data_filtered = data_input[data_input['area'] > 15]
+        if SAVE_MODE:
+            data = data_input_full[data_input_full['area'] > area_limit]
+            data.to_csv(
+                rf".\structure_data\structure_stats_abs_inputs_yp15_channel_{channel}_uvw_{uvw}_outputs_ranked_by_shap_step_by_10_area_13.csv",
+                index=False)
+            print('saved')
+            continue
+
+        # structure count plot
+        # areas_of_interest = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+        # plt.plot(areas_of_interest, [len(data_input_full[data_input_full['area'] > area_limit]) for area_limit in
+        #           areas_of_interest])
+        # plt.xlabel('Area limit')
+        # plt.ylabel('Number of structures')
+
+
+        data_input = pd.read_csv(
+            rf".\structure_data\structure_stats_abs_inputs_yp15_channel_{channel}_uvw_{uvw}_outputs_ranked_by_shap_step_by_10_area_13.csv")
+
+        data_filtered = data_input[data_input['area'] > area_limit]
 
         x = np.unique(data_filtered['step_start'])
         y_bin_full = np.bincount(np.array(data_input_full['step_start']*10, dtype=np.int32))
@@ -63,10 +83,11 @@ for uvw in range(3):
         y_diff = (y_bin_full - y_bin)/ np.sum(y_bin)
         plt.bar(x+0.05, y, width=0.095, alpha=0.9, label=f'{input_names[channel]}-{direction_names[uvw]}', color=f'C{channel}')
 
-plt.tight_layout()
-plt.ylabel(rf'Probability')
-plt.xlabel(rf'$\phi$ threshold')
-plt.xticks(np.arange(0, 1.1, 0.1))
-# plt.legend()
-plt.savefig(f'./bincount_15.png', bbox_inches='tight')
-k = 0
+if not SAVE_MODE:
+    plt.tight_layout()
+    plt.ylabel(rf'Probability')
+    plt.xlabel(rf'$\phi$ threshold')
+    plt.xticks(np.arange(0, 1.1, 0.1))
+    # plt.legend()
+    plt.savefig(f'./bincount_{area_limit}.png', bbox_inches='tight')
+    k = 0
