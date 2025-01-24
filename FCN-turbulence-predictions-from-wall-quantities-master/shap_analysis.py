@@ -25,9 +25,10 @@ plt.rcParams['axes.titlesize'] = 12
 
 plt.rcParams['axes.labelsize'] = 12
 plt.rcParams['axes.titlesize'] = 12
+# turn on latex
+plt.rc('text', usetex=True)
 
 for yp in [15, 100]:
-    yp = 100
     data_shap = np.load(rf'final_shap_{yp}.npy')
     data_x = np.load(rf'./x_test_{yp}.npy')
     data_y = np.load(rf'./y_test_{yp}.npy')
@@ -53,7 +54,8 @@ for yp in [15, 100]:
                 # domain size is (4pi*h, h, 2pi*h)
                 if j == 0:
                     data = resize(mean_x[i], (192, 384))
-                    ax.set_title(fr'Avg.Input {input_names[i]}')
+                    body = f'{input_names[i]}'
+                    ax.set_title(fr'Input $\overline{{{input_names[i][1:-1]}}}$', bbox=dict(pad=0, facecolor='none', edgecolor='none'))
                     ax.set_ylabel(r'$z/h$')
                     ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False, labeltop=False, labelsize=10)
                     ax.tick_params(axis='y', which='both', left=True, right=True, labelleft=True, labelright=False, labelsize=10)
@@ -62,7 +64,7 @@ for yp in [15, 100]:
                     cmap = 'RdBu'
                 else:
                     data = resize(mean_shap[j-1][i], (192, 384))
-                    ax.set_title(fr'Avg. |SHAP({direction_names[j-1]},{input_names[i]})|')
+                    ax.set_title(fr'$\overline{{|\phi_{{{direction_names[j-1][1:-1]}, {input_names[i][1:-1]}}}|}}$', bbox=dict(pad=0, facecolor='none', edgecolor='none'))
                     ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False, labeltop=False, labelsize=10)
                     ax.tick_params(axis='y', which='both', left=False, right=False, labelleft=False, labelright=False, labelsize=10)
                     cmap = 'binary'
@@ -83,8 +85,8 @@ for yp in [15, 100]:
 
         plt.tight_layout()
         # plt.savefig(f'./images/shap_analysis_{yp}_over_{amount_of_samples}_samples.png', bbox_inches='tight', dpi=300)
-        plt.savefig(f'./mean_shap_analysis_{yp}_over_{amount_of_samples}_samples.png', bbox_inches='tight', dpi=300)
-        # plt.show()
+        # plt.savefig(f'./mean_shap_analysis_{yp}_over_{amount_of_samples}_samples_v2.png', bbox_inches='tight', dpi=300)
+        plt.show()
 
         # cmap='coolwarm'
         k = 0

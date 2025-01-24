@@ -16,17 +16,19 @@ sys.path.insert(0, '../models')
 plt.rcParams['figure.figsize'] = (3.5, 2.5)
 plt.rcParams['figure.dpi'] = 300
 # Font settings
-plt.rcParams['font.size'] = 10
+plt.rcParams['font.size'] = 12
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.serif'] = ['Times New Roman']
 # Axes and labels
-plt.rcParams['axes.labelsize'] = 10
-plt.rcParams['xtick.labelsize'] = 8
-plt.rcParams['ytick.labelsize'] = 8
+plt.rcParams['axes.labelsize'] = 12
+plt.rcParams['xtick.labelsize'] = 10
+plt.rcParams['ytick.labelsize'] = 10
 plt.rcParams['lines.linewidth'] = 1.0
 # Legends and titles
-plt.rcParams['legend.fontsize'] = 8
-plt.rcParams['axes.titlesize'] = 12
+plt.rcParams['legend.fontsize'] = 10
+plt.rcParams['axes.titlesize'] = 14
+# add latex
+plt.rc('text', usetex=True)
 import scipy
 from tqdm import tqdm
 from scipy.stats import gaussian_kde
@@ -37,8 +39,9 @@ def visc_u(length_pixels, total_pixels=192, real_length=4 * np.pi, Re_tau=180):
     length_viscous_units = length_real * Re_tau
     return length_viscous_units
 
-input_names = [r'$\tau_{wx}$', r'$\tau_{wz}$', r'$p_{w}$']
-direction_names = ['$u$', '$v$', '$w$']
+
+input_names = [r'\tau_{wx}', r'\tau_{wz}', r'p_{w}']
+direction_names = ['u', 'v', 'w']
 yp = 15
 
 # data_input = pd.read_csv(r".\structure_data\structure_stats_abs_inputs_yp15_channel_0_uvw_0_outputs_ranked_by_shap_step_by_10.csv")
@@ -50,6 +53,7 @@ yp = 15
 
 SAVE_MODE = False
 area_limit = 13
+bins = []
 for uvw in range(3):
     for channel in tqdm(range(3)):
 
@@ -80,14 +84,22 @@ for uvw in range(3):
         y_bin_full = np.bincount(np.array(data_input_full['step_start']*10, dtype=np.int32))
         y_bin = np.bincount(np.array(data_filtered['step_start']*10, dtype=np.int32))
         y = y_bin / np.sum(y_bin)
+        bins.append(y_bin)
+
         y_diff = (y_bin_full - y_bin)/ np.sum(y_bin)
-        plt.bar(x+0.05, y, width=0.095, alpha=0.9, label=f'{input_names[channel]}-{direction_names[uvw]}', color=f'C{channel}')
+        plt.bar(x+0.05, y, width=0.095, alpha=0.9, label=f'{input_names[channel]}-{direction_names[uvw]}')
+        plt.ylabel(rf'Probability')
+        plt.xlabel(rf"$\phi_{{{direction_names[uvw]}, {input_names[channel]}}}$ threshold", fontsize=12)
+        plt.xticks(np.arange(0, 1.1, 0.1))
+        plt.savefig(f'./bincount_{area_limit}_channel_{channel}_uvw_{uvw}.png', bbox_inches='tight')
+        plt.close()
 
 if not SAVE_MODE:
+    plt.bar(x + 0.05, np.sum(bins, axis=0) / np.sum(bins), width=0.095, alpha=0.9, label=f'{input_names[channel]}-{direction_names[uvw]}')
     plt.tight_layout()
     plt.ylabel(rf'Probability')
-    plt.xlabel(rf'$\phi$ threshold')
+    plt.xlabel(rf'$\phi$ threshold', fontsize=12)
     plt.xticks(np.arange(0, 1.1, 0.1))
     # plt.legend()
-    plt.savefig(f'./bincount_{area_limit}.png', bbox_inches='tight')
+    plt.savefig(f'./bincount_{area_limit}_total.png', bbox_inches='tight')
     k = 0

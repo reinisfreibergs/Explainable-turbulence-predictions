@@ -84,45 +84,46 @@ for u_v_w in range(3):
                 # zeros_image_2 = np.zeros_like(zeros_image)
                 for struct_idx in range(1, num_features+1):
                     area = np.sum(struct_labels == struct_idx)
-                    # find the length as the maximum positive value along x axis
-                    x, y = np.where(struct_labels == struct_idx)
-                    max_x, min_x, max_y, min_y = np.max(x), np.min(x), np.max(y), np.min(y)
-                    # add one since have to include the last - if there's one pixel max=min but the length is 1
-                    length = max_x - min_x + 1
-                    height = max_y - min_y + 1
-                    # calculate the original sum of variables over the found structure
-                    individual_orig_struct = (struct_labels == struct_idx) * np.array(sample)
-                    individual_orig_struct_shap = (struct_labels == struct_idx) * np.array(sample_shap)
-                    individual_orig_struct_output = (struct_labels == struct_idx) * np.array(sample_output)
-                    original_sum = np.sum(individual_orig_struct)
-                    # for now take abs values - otherwise if symmetric around zero will cancel out
-                    original_abs_sum = np.sum(np.abs(individual_orig_struct))
+                    if area > 13:
+                        # find the length as the maximum positive value along x axis
+                        x, y = np.where(struct_labels == struct_idx)
+                        max_x, min_x, max_y, min_y = np.max(x), np.min(x), np.max(y), np.min(y)
+                        # add one since have to include the last - if there's one pixel max=min but the length is 1
+                        length = max_x - min_x + 1
+                        height = max_y - min_y + 1
+                        # calculate the original sum of variables over the found structure
+                        individual_orig_struct = (struct_labels == struct_idx) * np.array(sample)
+                        individual_orig_struct_shap = (struct_labels == struct_idx) * np.array(sample_shap)
+                        individual_orig_struct_output = (struct_labels == struct_idx) * np.array(sample_output)
+                        original_sum = np.sum(individual_orig_struct)
+                        # for now take abs values - otherwise if symmetric around zero will cancel out
+                        original_abs_sum = np.sum(np.abs(individual_orig_struct))
 
-                    shap_abs_sum = np.sum(np.abs(individual_orig_struct_shap))
-                    shap_sum = np.sum(individual_orig_struct_shap)
+                        shap_abs_sum = np.sum(np.abs(individual_orig_struct_shap))
+                        shap_sum = np.sum(individual_orig_struct_shap)
 
-                    output_abs_sum = np.sum(np.abs(individual_orig_struct_output))
-                    output_sum = np.sum(individual_orig_struct_output)
+                        output_abs_sum = np.sum(np.abs(individual_orig_struct_output))
+                        output_sum = np.sum(individual_orig_struct_output)
 
-                    mean_minimum_dist_to_wall = np.mean(np.min(np.array([x, y]), axis=0))
-                    # if area > 20:
-                    #     zeros_image = zeros_image + resize(individual_orig_struct, (208, 416))
-                    #     zeros_image_2 = zeros_image_2 + resize((1 * (individual_orig_struct != 0)) * shap_abs_sum, (208, 416))
+                        mean_minimum_dist_to_wall = np.mean(np.min(np.array([x, y]), axis=0))
+                        # if area > 20:
+                        #     zeros_image = zeros_image + resize(individual_orig_struct, (208, 416))
+                        #     zeros_image_2 = zeros_image_2 + resize((1 * (individual_orig_struct != 0)) * shap_abs_sum, (208, 416))
 
-                    result_dict['area'].append(area)
-                    result_dict['length'].append(length)
-                    result_dict['height'].append(height)
-                    result_dict['original_abs_sum'].append(original_abs_sum)
-                    result_dict['original_sum'].append(original_sum)
-                    result_dict['shap_abs_sum'].append(shap_abs_sum)
-                    result_dict['shap_sum'].append(shap_sum)
-                    result_dict['output_abs_sum'].append(output_abs_sum)
-                    result_dict['output_sum'].append(output_sum)
-                    result_dict['sample_idx'].append(sample_idx)
-                    result_dict['channel'].append(channel)
-                    result_dict['uvw'].append(u_v_w)
-                    result_dict['mean_minimum_dist_to_wall'].append(mean_minimum_dist_to_wall)
-                    result_dict['step_start'].append(step_start)
+                        result_dict['area'].append(area)
+                        result_dict['length'].append(length)
+                        result_dict['height'].append(height)
+                        result_dict['original_abs_sum'].append(original_abs_sum)
+                        result_dict['original_sum'].append(original_sum)
+                        result_dict['shap_abs_sum'].append(shap_abs_sum)
+                        result_dict['shap_sum'].append(shap_sum)
+                        result_dict['output_abs_sum'].append(output_abs_sum)
+                        result_dict['output_sum'].append(output_sum)
+                        result_dict['sample_idx'].append(sample_idx)
+                        result_dict['channel'].append(channel)
+                        result_dict['uvw'].append(u_v_w)
+                        result_dict['mean_minimum_dist_to_wall'].append(mean_minimum_dist_to_wall)
+                        result_dict['step_start'].append(step_start)
             k = 0
 
 

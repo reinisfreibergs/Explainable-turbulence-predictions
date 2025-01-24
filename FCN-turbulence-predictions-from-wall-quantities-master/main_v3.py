@@ -15,6 +15,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.utils import plot_model
 import shap
 from tqdm import tqdm
+# import cv2
 
 # tf.config.run_functions_eagerly(True)
 
@@ -26,6 +27,7 @@ from src.training_utils import load_trained_model
 from src.tfrecord_utils import get_dataset
 # from conf.config_sample import WallRecon
 from sklearn.linear_model import LinearRegression
+os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 
 # %% Configuration import
 import config
@@ -203,6 +205,8 @@ model_config['pred_path'] = pred_path
 # Loading the neural network --------------------------------------------------
 CNN_model = load_trained_model(model_config)
 
+X_test = np.load(rf'./x_test_{app.TARGET_YP}.npy')
+Y_test = np.load(rf'./y_test_{app.TARGET_YP}.npy')
 # Testing
 Y_pred = np.ndarray((n_samples_tot, app.N_VARS_OUT,
                      model_config['nx_'], model_config['nz_']), dtype='float')
@@ -302,8 +306,13 @@ for comparative_idx in range(3):
         current_mean = np.broadcast_to(np.mean(np.mean(X_test[i], axis=-1, keepdims=True), axis=-2, keepdims=True),
                                        X_test[i].shape)
 
+        # current_mean = np.broadcast_to(np.percentile(np.percentile(X_test[i], 75, axis=-1, keepdims=True), 75, axis=-2, keepdims=True), X_test[i].shape)
+
+        # current_mean = cv2.GaussianBlur(X_test[i], (15, 15), 0)
+
         # pass as background the mean of this specific sample
         explainer = shap.DeepExplainer(first_output_model, current_mean[None, :])
+        # explainer = shap.DeepExplainer(first_output_model, np.concatenate((X_test[:max(0, i-500)], X_test[min(i+901, 1000):])))
 
         # explain the specific X sample
         shap_values = explainer.shap_values(X_test[i][None, :], check_additivity=False)
@@ -317,23 +326,25 @@ for comparative_idx in range(3):
 
 k = 0
 
-np.save(rf'final_shap_{app.TARGET_YP}.npy', np.array(final_shap))
-np.save(rf'./x_test_{app.TARGET_YP}.npy', X_test)
-np.save(rf'./y_test_{app.TARGET_YP}.npy', Y_test)
-mean_shap = np.mean(np.abs(shap_values_combined), axis=0)
-plt.figure(figsize=(4, 8))
-for i, img in enumerate(mean_shap):
-    plt.subplot(len(mean_shap), 1, i+1)
-    plt.imshow(img, cmap='RdBu', vmin=np.min(img), vmax=np.max(img))
-plt.show()
-
-shap.image_plot([i.T for i in shap_values_combined], X_test.reshape(10, 208, 208, 3)[0])
-
-
-
-i_set_pred = 0
-while os.path.exists(pred_path + f'pred_fluct{i_set_pred:04d}.npz'):
-    i_set_pred = i_set_pred + 1
-print('[SAVING PREDICTIONS]')
-print('Saving predictions in ' + f'pred_fluct{i_set_pred:04d}')
-np.savez(pred_path + f'pred_fluct{i_set_pred:04d}', Y_test=Y_test, Y_pred=Y_pred)
+# np.save(rf'final_shap_{app.TARGET_YP}_15.npy', np.array(final_shap))
+k = 0
+# np.save(rf'final_shap_{app.TARGET_YP}.npy', np.array(final_shap))
+# np.save(rf'./x_test_{app.TARGET_YP}.npy', X_test)
+# np.save(rf'./y_test_{app.TARGET_YP}.npy', Y_test)
+# mean_shap = np.mean(np.abs(shap_values_combined), axis=0)
+# plt.figure(figsize=(4, 8))
+# for i, img in enumerate(mean_shap):
+#     plt.subplot(len(mean_shap), 1, i+1)
+#     plt.imshow(img, cmap='RdBu', vmin=np.min(img), vmax=np.max(img))
+# plt.show()
+#
+# shap.image_plot([i.T for i in shap_values_combined], X_test.reshape(10, 208, 208, 3)[0])
+#
+#
+#
+# i_set_pred = 0
+# while os.path.exists(pred_path + f'pred_fluct{i_set_pred:04d}.npz'):
+#     i_set_pred = i_set_pred + 1
+# print('[SAVING PREDICTIONS]')
+# print('Saving predictions in ' + f'pred_fluct{i_set_pred:04d}')
+# np.savez(pred_path + f'pred_fluct{i_set_pred:04d}', Y_test=Y_test, Y_pred=Y_pred)

@@ -19,87 +19,126 @@ from matplotlib.ticker import ScalarFormatter
 from sklearn.cluster import KMeans
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
+plt.rcParams['figure.figsize'] = (3.5, 2.5)
+plt.rcParams['figure.dpi'] = 300
+# Font settings
+plt.rcParams['font.size'] = 10
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = ['Times New Roman']
+# Axes and labels
+plt.rcParams['axes.labelsize'] = 10
+plt.rcParams['xtick.labelsize'] = 8
+plt.rcParams['ytick.labelsize'] = 8
+plt.rcParams['lines.linewidth'] = 1.0
+# Legends and titles
+plt.rcParams['legend.fontsize'] = 8
+plt.rcParams['axes.titlesize'] = 12
+plt.rc('text', usetex=True)
 
+plt.rcParams['font.size'] = 10 + 2
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = ['Times New Roman']
+# Axes and labels
+plt.rcParams['axes.labelsize'] = 10 + 2
+plt.rcParams['xtick.labelsize'] = 8 + 2
+plt.rcParams['ytick.labelsize'] = 8 + 2
+plt.rcParams['lines.linewidth'] = 1.0 + 0.2
+# Legends and titles
+plt.rcParams['legend.fontsize'] = 8 + 2
+plt.rcParams['axes.titlesize'] = 12 + 2
 def create_contour_plot(X, Y, show_mean=False, save=False, uvw=0, channel=0, name='output', return_x_y = False):
 
-    X = (X - np.mean(X)) / np.std(X)
-    # Y = (Y - np.mean(Y)) / np.std(Y)
-    input_names = [r'\tau_{wx}', r'\tau_{wz}', r'p_{w}']
-    direction_names = ['u', 'v', 'w']
-    # Create grid points for KDE
-    xmin, xmax = 0.99*X.min(), 1.01*X.max()
-    ymin, ymax = 0.99*Y.min(), 1.01*Y.max()
-    bins = (1000, 1000)  # Number of bins for the histogram
-    H_init, xedges, yedges = np.histogram2d(X, Y, bins=bins, range=[[xmin, xmax], [ymin, ymax]])
-    H = scipy.ndimage.gaussian_filter(H_init, sigma=2)
+    if not return_x_y:
 
-    xcenters = (xedges[:-1] + xedges[1:]) / 2
-    ycenters = (yedges[:-1] + yedges[1:]) / 2
-    X_grid, Y_grid = np.meshgrid(xcenters, ycenters)
+        X = (X - np.mean(X)) / np.std(X)
+        input_names = [r'\tau_{wx}', r'\tau_{wz}', r'p_{w}']
+        direction_names = ['u', 'v', 'w']
+        # Create grid points for KDE
+        xmin, xmax = 0.99*X.min(), 1.01*X.max()
+        ymin, ymax = 0.99*Y.min(), 1.01*Y.max()
+        bins = (1000, 1000)  # Number of bins for the histogram
+        H_init, xedges, yedges = np.histogram2d(X, Y, bins=bins, range=[[xmin, xmax], [ymin, ymax]])
+        H = scipy.ndimage.gaussian_filter(H_init, sigma=2)
+        H = H * (H > 10)
 
-    num_levels = 1000
-    # min_density = H[H > 0].min()  # Minimum non-zero density
-    min_density = 0.01
-    max_density = H.max()  # Maximum density
-    # max_density = 0.01*H.max()
-    levels = np.linspace(min_density, max_density, num_levels)
+        # recalculate x_min and max from H
+        xmin1, xmax1 = xedges[np.where(H)[0].min()], xedges[np.where(H)[0].max()]
+        ymin1, ymax1 = yedges[np.where(H)[1].min()], yedges[np.where(H)[1].max()]
+
+        # xedges = xedges[np.where(H)[0].min() : np.where(H)[0].max()]
+        # yedges = yedges[np.where(H)[1].min() : np.where(H)[1].max()]
+
+        xcenters = (xedges[:-1] + xedges[1:]) / 2
+        ycenters = (yedges[:-1] + yedges[1:]) / 2
+        X_grid, Y_grid = np.meshgrid(xcenters, ycenters)
+
+        plt.figure()
+        im = plt.imshow(np.log10(H.T), origin='lower', extent=[xmin, xmax, ymin, ymax], cmap='viridis', aspect='auto')
+
+        # contour = plt.contour(X_grid, Y_grid, H.T, levels=levels, colors='red', linewidths=0.2, extent=[xmin, xmax, ymin, ymax], norm=LogNorm())
+        # contourf = plt.contourf(X_grid, Y_grid, H.T, levels=levels, extent=[xmin, xmax, ymin, ymax], norm=LogNorm())
+        # contour = plt.contour(X_grid, Y_grid, np.log(H.T), levels=20, colors='red', linewidths=0.2, extent=[xmin, xmax, ymin, ymax])
+        # plt.figure()
+        # contourf = plt.contourf(X_grid, Y_grid, np.log10(H.T), levels=25, extent=[xmin, xmax, ymin, ymax])
+        # plt.contourf(X_grid, Y_grid, make_zeros_inf(np.log10(np.array(H.T)) * (np.log10(np.array(H.T)) > -1)), levels=25,
+        #              extent=[xmin, xmax, ymin, ymax])
+        cbar = plt.colorbar(im)
+        cbar.set_ticks([1, 2, 3, 4, 5])
+        def log_format(x, pos):
+            return r'$10^{{{:.0f}}}$'.format(x)
+        cbar.ax.yaxis.set_major_formatter(plt.FuncFormatter(log_format))
+        cbar.ax.tick_params(labelsize=10)
+
+        ax = plt.gca()
+        ax.yaxis.set_major_formatter(ticker.ScalarFormatter())
+        ax.yaxis.get_major_formatter().set_scientific(True)
+        ax.yaxis.get_major_formatter().set_powerlimits((0, 0))
+        cbar.ax.set_title('point count', fontsize=10)
+
+        if name == 'input':
+            k = 0
+            # plt.xlabel(rf'${input_names[channel]}$')
+            plt.xlabel(r'$\frac{\tau_{wx} - \overline{\tau_{wx}}}{\sigma_{\tau_{wx}}}$', fontsize=14)
+            # plt.xlabel(
+            #     rf'$\frac{{{input_names[channel]} - \overbar{input_names[channel]}}}{{\overbar{{input_names[channel]}}}}}$')
+            # plt.xlabel(
+            #     rf'$\frac{{{input_names[channel]} - \text{{mean(}} {input_names[channel]})}}{{\text{{std(}} {input_names[channel]})}}$')
+            # plt.xlabel(rf'${input_names[channel]}$', fontsize=24)
+            # plt.title(
+            #     f'${input_names[channel]}$ input SHAP value distribution for the ${direction_names[uvw]}$ fluctuation \n',
+            #     fontsize=20)
+        else:
+            plt.xlabel(rf'${direction_names[uvw]}$')
+            # plt.xlabel(rf'${direction_names[uvw]}$', fontsize=24)
+            # plt.title(
+            #     f'${input_names[channel]}$ input SHAP value distribution for the ${direction_names[uvw]}$ fluctuation \n',
+            #     fontsize=20)
+
+        plt.ylabel(rf"$\phi_{{{direction_names[uvw]}, {input_names[channel]}}}$", fontsize=14)
+        if NORMALIZE_SHAP:
+            plt.ylabel(rf"$\widehat{{\phi}}_{{{direction_names[uvw]}, {input_names[channel]}}}$", fontsize=14)
+        # plt.ylabel(rf'$\phi({direction_names[uvw]}, {input_names[channel]})$', fontsize=24)
+        # plt.tick_params(labelsize=18)
 
 
+        # ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune=None))
+        # plt.locator_params(axis='y', nbins=5)
+        plt.tight_layout()
+        # plt.savefig(f'./images/{name}_abs_shap_scaled_log_density_{yp}_channel_{channel}_uvw_{uvw}.png',
+        #             dpi=200, bbox_inches='tight')
+        # plt.show()
 
-    # Plot the 2D histogram
-    plt.figure(figsize=(16, 10))
-
-    ax = plt.gca()
-    # Set the y-axis to use scientific notation
-    formatter = ScalarFormatter(useMathText=True)
-    formatter.set_scientific(True)
-    formatter.set_powerlimits((0, 0))
-    ax.yaxis.set_major_formatter(formatter)
-    ax.yaxis.get_offset_text().set_fontsize(18)
-
-    im = plt.imshow(np.log10(H_init.T), origin='lower', extent=[xmin, xmax, ymin, ymax], cmap='viridis', aspect='auto')
-    # plt.colorbar(label='Count')
-    # plt.xlabel('X-axis')
-    # plt.ylabel('Y-axis')
-    # plt.title('2D Histogram Density Plot')
-    # plt.scatter(X, Y)
-    # contour = plt.contour(X_grid, Y_grid, H.T, levels=levels, colors='red', linewidths=0.2, extent=[xmin, xmax, ymin, ymax], norm=LogNorm())
-    # contourf = plt.contourf(X_grid, Y_grid, H.T, levels=levels, extent=[xmin, xmax, ymin, ymax], norm=LogNorm())
-    # contour = plt.contour(X_grid, Y_grid, np.log(H.T), levels=20, colors='red', linewidths=0.2, extent=[xmin, xmax, ymin, ymax])
-    contourf = plt.contourf(X_grid, Y_grid, np.log10(H.T), levels=25, extent=[xmin, xmax, ymin, ymax])
-    cbar = plt.colorbar(im)
-    cbar.ax.set_title('point count \n 10^', fontsize=20)
-    cbar.ax.tick_params(labelsize=18)
-    # plt.clabel(contour, inline=True, fontsize=8, colors='white')
-    # [0.01, 0.1, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    # Add color bar
-    # plt.colorbar(label='Count')
-
-    if name == 'input':
-        plt.xlabel(rf'${input_names[channel]}$', fontsize=24)
-        # plt.title(
-        #     f'${input_names[channel]}$ input SHAP value distribution for the ${direction_names[uvw]}$ fluctuation \n',
-        #     fontsize=20)
-    else:
-        plt.xlabel(rf'${direction_names[uvw]}$', fontsize=24)
-        # plt.title(
-        #     f'${input_names[channel]}$ input SHAP value distribution for the ${direction_names[uvw]}$ fluctuation \n',
-        #     fontsize=20)
-
-    plt.ylabel(rf'$\phi({direction_names[uvw]}, {input_names[channel]})$', fontsize=24)
-    plt.tick_params(labelsize=18)
-
-    plt.tight_layout()
-    # plt.savefig(f'./images/{name}_abs_shap_scaled_log_density_{yp}_channel_{channel}_uvw_{uvw}.png',
-    #             dpi=200, bbox_inches='tight')
-    # plt.show()
-
-    k = 0
-    plt.close()
-
+        k = 0
+        # plt.close()
 
     if return_x_y:
-        hist, xedges, yedges = np.histogram2d(X, Y, bins=100)
+        hist_rr, xedges, yedges = np.histogram2d(X, Y, bins=1000)
+        hist_r = scipy.ndimage.gaussian_filter(hist_rr, sigma=2)
+        # hist = make_zeros_inf(np.log10(hist) * (np.log10(hist) > 1))
+        hist = hist_r * (hist_r > 10.5)
+        # xedges[np.where(H)[0].min() : np.where(H)[0].max()])
+        # yedges[np.where(H)[1].min()], yedges[np.where(H)[1].max()]
+
         # Calculate the bin centers
         x_bin_centers = (xedges[:-1] + xedges[1:]) / 2
         y_bin_centers = (yedges[:-1] + yedges[1:]) / 2
@@ -116,17 +155,18 @@ def create_contour_plot(X, Y, show_mean=False, save=False, uvw=0, channel=0, nam
 
         # Separate x and y values for the top 1% line
         top_1_percent_x, top_1_percent_y = zip(*top_1_percent_line)
-        window_length = 11  # Window length must be odd
+        window_length = 21  # Window length must be odd
         polyorder = 2  # Polynomial order
         top_1_percent_y_smooth = savgol_filter(top_1_percent_y, window_length, polyorder)
-        # Plot the 2D histogram as a density plot
-        # plt.imshow(hist.T, origin='lower', extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], aspect='auto',
-        #            cmap='viridis')
-        # Plot the top 1% line
-        # plt.plot(top_1_percent_x, top_1_percent_y_smooth, color='red', linestyle='--', linewidth=2, label='Top 1% Threshold')
-        k = 0
 
-        return top_1_percent_x, top_1_percent_y_smooth
+        minx, maxx = np.where(hist)[0].min(), np.where(hist)[0].max()
+        # plt.plot(top_1_percent_x, savgol_filter(top_1_percent_y, window_length, polyorder), color='red', label='Top 1% Threshold')
+        # plt.xlim(xmin1, xmax1)
+        # plt.ylim(ymin1, ymax1)
+        # ax.set_yticks(np.arange(0.2e-4, 1.1e-4, 0.2e-4))
+        # plt.savefig(f'./distribution_fixed.png', dpi=300, bbox_inches='tight')
+
+        return top_1_percent_x[minx:maxx], top_1_percent_y_smooth[minx:maxx]
 
     CREATE_COUNT_COMPARISON = False
     if CREATE_COUNT_COMPARISON:
@@ -301,6 +341,10 @@ REGRESSION = False
 input_names = [r'\tau_{wx}', r'\tau_{wz}', r'p_{w}']
 direction_names = ['u', 'v', 'w']
 fig, axs = plt.subplots(figsize=(12, 12))
+
+
+NORMALIZE_SHAP = True
+tops = []
 for uvw in range(3):
     for channel in range(3):
         samples_input = np.array([])
@@ -329,6 +373,11 @@ for uvw in range(3):
             sample_y_x, sample_y_y = np.where(sample_y_raw)
 
             sample_shap_raw = data_shap[uvw][sample_idx][channel][8:-8, 8:-8]
+            if NORMALIZE_SHAP:
+                # full example in input_density_plots_just_tau_p.py -> over all channels at once
+                shap_mean_value_over_channels = np.mean(data_shap[uvw][sample_idx][:, 8:-8, 8:-8])
+                sample_shap_raw = (sample_shap_raw) / shap_mean_value_over_channels
+
             sample_shap = sample_shap_raw.reshape(-1)
             sample_shap_x, sample_shap_y = np.where(sample_shap_raw)
 
@@ -348,15 +397,22 @@ for uvw in range(3):
             k = 0
 
         # clustering(samples_input, samples_shap)
-        colors = ['red', 'blue', 'green']
+        # colors = ['red', 'blue', 'green']
+        colors = ['#440154', '#31688e', '#a0da39']
         line_types = ['-', '--', ':']
         top_x, top_y = create_contour_plot(samples_input, np.abs(samples_shap), uvw=uvw, channel=channel, name='input', return_x_y=True)
+        tops.append([top_x, top_y])
 
-        axs.plot(top_x, top_y, color=colors[uvw], linestyle=line_types[channel], linewidth=2, label=f"$\phi({direction_names[uvw]}, {input_names[channel]})$")
-        plt.legend(fontsize=18)
-        plt.ylabel('$\phi$', fontsize=24)
-        plt.xlabel('Input', fontsize=24)
-        axs.tick_params(labelsize=20)
+        # axs.plot(top_x, top_y, color=colors[uvw], linestyle=line_types[channel], linewidth=2, label=f"$\phi({direction_names[uvw]}, {input_names[channel]})$")
+        # plt.legend()
+        # plt.ylabel('$\phi$')
+        # plt.xlabel('Input')
+        # plt.legend(fontsize=18)
+        # plt.ylabel('$\phi$', fontsize=24)
+        # plt.xlabel('Input', fontsize=24)
+        # axs.tick_params(labelsize=20)
+
+
         # plt.savefig(f'./images/all_in_one.png',
         #             dpi=300, bbox_inches='tight')
         # create_contour_plot(samples_y, samples_shap/samples_y, uvw=uvw, channel=channel, name='output')
@@ -385,4 +441,52 @@ for uvw in range(3):
         k = 0
 
 # combined_df_started.to_excel(rf'regression_yp_{yp}_abs_top20_single_pixel.xlsx', index=False, header=False)
+
+k=0
+
+plt.rcParams['font.size'] = 10 + 2
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = ['Times New Roman']
+# Axes and labels
+plt.rcParams['axes.labelsize'] = 10 + 2
+plt.rcParams['xtick.labelsize'] = 8 + 2
+plt.rcParams['ytick.labelsize'] = 8 + 2
+plt.rcParams['lines.linewidth'] = 1.0 + 0.2
+# Legends and titles
+plt.rcParams['legend.fontsize'] = 8 + 2
+plt.rcParams['axes.titlesize'] = 12 + 2
+
+
+fig, axs = plt.subplots()
+i = 0
+for uvw in range(3):
+    for channel in range(3):
+        x, y = tops[i]
+        # axs.plot(x, y, color=colors[uvw], linestyle=line_types[channel], linewidth=1.2,
+        #          label=f"$\phi{direction_names[uvw]}, {input_names[channel]})$")
+        axs.plot(x, y, color=colors[uvw], linestyle=line_types[channel], linewidth=1.2,
+                 label=fr"$\widehat{{\phi}}_{{{direction_names[uvw]}, {input_names[channel]}}}$")
+
+        # ax.set_title(fr'$\overline{{|\phi_{{{direction_names[j - 1][1:-1]}, {input_names[i][1:-1]}}}|}}$',
+        #              bbox=dict(pad=0, facecolor='none', edgecolor='none'))
+
+        i += 1
+plt.legend(fontsize=7, bbox_to_anchor=(1.05, 0.5), loc='center left')
+ax = plt.gca()
+ax.yaxis.set_major_formatter(ticker.ScalarFormatter())
+ax.yaxis.get_major_formatter().set_scientific(True)
+ax.yaxis.get_major_formatter().set_powerlimits((0, 0))
+
+ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+plt.locator_params(axis='y', nbins=4)
+plt.locator_params(axis='x', nbins=7)
+
+# top 0.940;    bottom 0.184;    left 0.138 (0.153 wuth widetilde);    right 0.704
+# plt.xlabel(r'$\frac{{[\tau_{wx}, \tau_{wz}, p_{w}]_i - \text{mean}_i}}{std_i}$')
+plt.xlabel(r'$[\widetilde{\tau}_{wx}, \widetilde{\tau}_{wz}, \widetilde{p}_{w}]$')
+plt.ylabel(r'$\phi$')
+if NORMALIZE_SHAP:
+    plt.ylabel(r'$\widehat{\phi}$')
+plt.tight_layout()
+# plt.savefig(f'all_in_one_v4.png', dpi=300, bbox_inches='tight')
 k = 0

@@ -30,7 +30,21 @@ from src.tfrecord_utils import get_dataset
 # from conf.config_sample import WallRecon
 
 import config
-
+plt.rcParams['figure.figsize'] = (3.5, 2.5)
+plt.rcParams['figure.dpi'] = 300
+# Font settings
+plt.rcParams['font.size'] = 10
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = ['Times New Roman']
+# Axes and labels
+plt.rcParams['axes.labelsize'] = 10
+plt.rcParams['xtick.labelsize'] = 10
+plt.rcParams['ytick.labelsize'] = 10
+plt.rcParams['lines.linewidth'] = 1.0
+# Legends and titles
+plt.rcParams['legend.fontsize'] = 10
+plt.rcParams['axes.titlesize'] = 12
+plt.rc('text', usetex=True)
 
 yp = 15
 
@@ -40,8 +54,19 @@ data_x = np.load(rf'./x_test_{yp}.npy')
 data_y = np.load(rf'./y_test_{yp}.npy')
 mean_shap = np.mean(np.abs(data_shap),axis=1)
 
-input_names = [r'$\tau_{wx}$ modified input', r'$\tau_{wz}$ modified input', r'$p_{w}$ modified input']
+input_names = [r'$\tau_{wx}$', r'$\tau_{wz}$', r'$p_{w}$']
+# input_names = [r'\tau_{wx}', r'\tau_{wz}', r'p_{w}']
+# direction_names = ['$u$', '$v$', '$w$']
 direction_names = ['u', 'v', 'w']
+# colors = ['red', 'blue', 'green']
+line_types = ['-', '--', ':']
+
+
+plt.rc('text', usetex=True)
+plt.rcParams['font.size'] = 10 + 2
+plt.rcParams['font.family'] = 'serif'
+# axs.plot(top_x, top_y, color=colors[uvw], linestyle=line_types[channel]
+colors = ['#a0da39', '#440154', '#31688e']
 USE_ALL_CHANNELS_FOR_REF = True
 for index_uvw in range(3):
     relative_increases = [np.array([]), np.array([]), np.array([])]
@@ -52,6 +77,8 @@ for index_uvw in range(3):
 
         index_u_v_w, first_np, second_total, mse_total, true_value, ranked_indices, sample_idx, pixel_frequency, idxes = result_row
         reference_mse_by_channel = np.mean((true_value - first_np.squeeze()) ** 2, axis=(-1, -2))
+        original_max_pixel_value = np.max(first_np.squeeze(), axis=(-1, -2))
+        mse_values = np.mean((true_value - second_total) ** 2, axis=(2, 3))
         if USE_ALL_CHANNELS_FOR_REF:
             reference_mse = np.mean(reference_mse_by_channel)
         else:
@@ -59,11 +86,18 @@ for index_uvw in range(3):
 
         for channel_idx in range(3):
             if USE_ALL_CHANNELS_FOR_REF:
-                modified_image_mse = np.mean(mse_total[channel_idx], axis=-1)
+                # modified_image_mse = np.mean(mse_total[channel_idx], axis=-1)
+                modified_image_mse = np.mean(mse_total[channel_idx] / original_max_pixel_value, axis=-1)
             else:
-                modified_image_mse = mse_total[index_uvw, :, channel_idx]
+                # modified_image_mse = mse_total[index_uvw, :, channel_idx] / original_max_pixel_value[index_uvw]
+                # modified_image_mse = mse_total[channel_idx, :, index_u_v_w] / original_max_pixel_value[index_u_v_w]
+                modified_image_mse = mse_total[channel_idx, :, index_u_v_w]
 
-            relative_increase = ((modified_image_mse - reference_mse) / reference_mse) * 100
+            # relative_increase = ((modified_image_mse - reference_mse) / reference_mse) * 100
+            # if np.mean(modified_image_mse) > 0.2:
+            #     print('warning')
+            #     modified_image_mse /= 10
+            relative_increase = ((modified_image_mse))
 
             if int(sample_idx) == 0:
                 relative_increases[channel_idx] = relative_increase
@@ -74,17 +108,25 @@ for index_uvw in range(3):
 
 
 
-    # plt.plot(idxes, relative_increase, label=input_names[channel_idx], linewidth=2)
+        # plt.plot(idxes, relative_increase, label=input_names[channel_idx], linewidth=2)
     for channel_idx in range(3):
-        plt.plot(idxes, np.mean(relative_increases[channel_idx], axis=0), label=input_names[channel_idx], linewidth=2)
+        plt.plot(idxes, (np.mean(relative_increases[channel_idx], axis=0)),
+                 # label=f"$\phi({direction_names[index_u_v_w]}, {input_names[channel_idx]})$",
+                 label=input_names[channel_idx],
+                 linewidth=1,
+                 color=colors[channel_idx])
+                 # linestyle=line_types[channel_idx])
+    plt.legend(loc='best', fontsize=12)
 
-    plt.legend(fontsize=24)
-    # plt.title(rf'Change in MSE of the ${direction_names[index_u_v_w]}$ prediction after removing a fraction of pixels ordered by absolute SHAP', fontsize=24)
-    plt.xlabel(rf'Fraction of pixels removed from input', fontsize=24)
-    # plt.ylabel(rf'Relative increase in MSE, %', fontsize=24)
-    plt.title(r'Relative increase in MSE, %: $\frac{{\text{mse_{orig}} - \text{mse_{removed}}}}{{\text{mse_{orig}}}} \times 100$', fontsize=24)
-    plt.xticks(fontsize=18)
-    plt.yticks(fontsize=18)
-    plt.tight_layout()
-    k = 0
+# plt.title(rf'Change in MSE of the ${direction_names[index_u_v_w]}$ prediction after removing a fraction of pixels ordered by absolute SHAP', fontsize=24)
+# plt.xlabel(rf'Fraction of pixels removed from input')
+plt.xlabel(r'$\frac{{\rm{px}}_{\rm{rmv}}}{{\rm{px}}_{\rm{tot}}}$', fontsize=14)
+plt.ylabel(r'$\rm{MSE}^*$', fontsize=12)
+# plt.title(r'Relative increase in MSE, %: $\frac{{\text{mse_{orig}} - \text{mse_{removed}}}}{{\text{mse_{orig}}}} \times 100$', fontsize=24)
+# plt.title(r'MSE of velocity fluctuations with a modified input channel', fontsize=10)
+plt.xticks()
+plt.yticks(np.arange(0, 0.15, 0.015))
+plt.tight_layout()
+# plt.savefig(f'./relative_increase_mse_{yp}_{index_uvw}.png', bbox_inches='tight', dpi=300)
+k = 0
 

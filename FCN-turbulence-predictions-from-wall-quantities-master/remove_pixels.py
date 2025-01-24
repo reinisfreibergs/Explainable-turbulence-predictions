@@ -28,7 +28,7 @@ import config_before_copy_15
 
 prb_def = 'WallRecon'
 
-
+import config
 app = config.WallRecon
 
 os.environ["CUDA_VISIBLE_DEVICES"] = str(app.WHICH_GPU_TEST);

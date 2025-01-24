@@ -28,7 +28,22 @@ sys.path.insert(0, '../models')
 from src.training_utils import load_trained_model
 from src.tfrecord_utils import get_dataset
 # from conf.config_sample import WallRecon
-
+plt.rcParams['figure.figsize'] = (3.5, 2.5)
+plt.rcParams['figure.dpi'] = 300
+# Font settings
+plt.rcParams['font.size'] = 10
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['font.serif'] = ['Times New Roman']
+# Axes and labels
+plt.rcParams['axes.labelsize'] = 10
+plt.rcParams['xtick.labelsize'] = 8
+plt.rcParams['ytick.labelsize'] = 8
+plt.rcParams['lines.linewidth'] = 1.0
+# Legends and titles
+plt.rcParams['legend.fontsize'] = 8
+plt.rcParams['axes.titlesize'] = 12
+# add latex
+plt.rc('text', usetex=True)
 import config
 
 prb_def = 'WallRecon'
@@ -271,8 +286,12 @@ def explain_the_huge_increase_in_mse(result_row):
 data_shap = np.load(rf'final_shap_{app.TARGET_YP}.npy')
 data_x = np.load(rf'./x_test_{app.TARGET_YP}.npy')
 data_y = np.load(rf'./y_test_{app.TARGET_YP}.npy')
-mean_shap = np.mean(np.abs(data_shap),axis=1)
+# mean_shap = np.mean(np.abs(data_shap),axis=1)
 
+
+# data_x = np.array(X_test)
+# data_y = np.array(Y_test)
+# data_shap = np.load(rf'final_shap_{app.TARGET_YP}.npy')
 
 u_rms = model_config['rms'][0][model_config['ypos_Ret'][str(app.TARGET_YP)]]
 default_scale = np.array([[(model_config['rms'][i][model_config['ypos_Ret'][str(app.TARGET_YP)]] / u_rms).numpy(),
@@ -349,15 +368,15 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
     second_total = []
     true_total = []
     input_total = []
-    true_value = np.array(Y_test[sample_idx])
+    true_value = np.array(data_y[sample_idx])
     first = CNN_model.predict(data_x[sample_idx][None, :])
     # use only the last pressure channel
     for channel in [2]:
 
         ranked_indices = np.array(np.unravel_index(np.argsort(np.abs(data_shap)[index_u_v_w][sample_idx][channel].flatten()), data_shap[index_u_v_w][sample_idx][channel].shape)).T
-        current_mean = np.mean(X_test[sample_idx], axis=(-1, -2))
+        current_mean = np.mean(data_x[sample_idx], axis=(-1, -2))
 
-        modified_img = np.array(X_test[sample_idx])
+        modified_img = np.array(data_x[sample_idx])
         # use every 100th for now as every single one will be too much
         for idx, fraction in enumerate(fractions):
 
@@ -380,16 +399,17 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
         second = CNN_model.predict(modified_img_total, batch_size=2)
 
 
-        fig = plt.figure(figsize=(24, 16))
+        # fig = plt.figure(figsize=(24, 16))
+        fig = plt.figure()
         axs = ImageGrid(fig, 111,
                          nrows_ncols=(2, 2),
                          cbar_location="right",
                          cbar_mode='edge',
                          direction='row',
                          cbar_size="5%",
-                         cbar_pad=0.2,
+                         cbar_pad=0.1,
                          share_all=True,
-                         axes_pad=0.4
+                         axes_pad=(0.1, 0.3)
                          )
         # fig, axs = plt.subplots(2, 2, figsize=(18, 10))
 
@@ -399,39 +419,46 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
         vmin3 = np.min(resize(first[0][0][0], (192, 384)))
         vmax3 = np.max(resize(first[0][0][0], (192, 384)))
 
-        im1 = axs[0].imshow(resize(data_x[sample_idx][2, 8:-8, 8:-8], (192, 384)), cmap='RdBu_r', vmin=vmin,
-                               vmax=vmax, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])
+        # cmap = 'RdBu_r'
+        cmap = 'viridis'
+        im1 = axs[0].imshow(resize(data_x[sample_idx][2, 8:-8, 8:-8], (192, 384)), cmap=cmap, vmin=-max(abs(vmin), abs(vmax)),
+                               vmax=max(abs(vmin), abs(vmax)), extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])
 
-        im2 = axs[1].imshow(resize(modified_img_total.squeeze()[2, 8:-8, 8:-8], (192, 384)), cmap='RdBu_r',
-                               vmin=vmin, vmax=vmax, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])  # modified input
+        im2 = axs[1].imshow(resize(modified_img_total.squeeze()[2, 8:-8, 8:-8], (192, 384)), cmap=cmap,
+                               vmin=-max(abs(vmin), abs(vmax)), vmax=max(abs(vmin), abs(vmax)), extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])  # modified input
 
-        im3 = axs[2].imshow(resize(first[0][0][0], (192, 384)), cmap='RdBu_r', vmin=vmin3, vmax=vmax3, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])  # original prediction
+        im3 = axs[2].imshow(resize(first[0][0][0], (192, 384)), cmap=cmap, vmin=vmin3, vmax=vmax3, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])  # original prediction
 
-        im4 = axs[3].imshow(resize(second[0][0][0], (192, 384)), cmap='RdBu_r', vmin=vmin3, vmax=vmax3, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])
+        im4 = axs[3].imshow(resize(second[0][0][0], (192, 384)), cmap=cmap, vmin=vmin3, vmax=vmax3, extent=[-2*np.pi, 2*np.pi, -np.pi, np.pi])
 
-        axs[0].set_title('Original $p_w$ input', fontsize=24)
-        axs[1].set_title('Modified $p_w$ input', fontsize=24)
-        axs[2].set_title('Original $u$ prediction', fontsize=24)
-        axs[3].set_title('Modified $u$ prediction', fontsize=24)
+        axs[0].set_title('Original $p_w$ input', fontsize=16)
+        axs[1].set_title('Modified $p_w$ input', fontsize=16)
+        axs[2].set_title('Original $u$ prediction', fontsize=16)
+        axs[3].set_title('Modified $u$ prediction', fontsize=16)
 
-        axs[0].set_ylabel(r'$z/h$', fontsize=24)
-        axs[2].set_ylabel(r'$z/h$', fontsize=24)
-        axs[2].set_xlabel(r'$x/h$', fontsize=24)
-        axs[3].set_xlabel(r'$x/h$', fontsize=24)
+        axs[0].set_ylabel(r'$z/h$', fontsize=18, labelpad=-5)
+        axs[2].set_ylabel(r'$z/h$', fontsize=18, labelpad=-5)
+        axs[2].set_xlabel(r'$x/h$', fontsize=18, labelpad=1)
+        axs[3].set_xlabel(r'$x/h$', fontsize=18, labelpad=1)
 
         # plt.subplots_adjust(wspace=0.3, hspace=0.3)
         cbar1 = plt.colorbar(im2, cax=axs.cbar_axes[0])
         cbar2 = plt.colorbar(im4, cax=axs.cbar_axes[1])
-        cbar1.ax.tick_params(labelsize=18)
-        cbar2.ax.tick_params(labelsize=18)
+        cbar1.ax.tick_params(labelsize=14)
+        cbar2.ax.tick_params(labelsize=14)
 
-        custom_ticks = [vmin3, -0.2, -0.1, 0, 0.1, 0.2, vmax3]
+        # cbar1_ticks = cbar1.get_ticks()  # Get the default ticks from cbar1
+        # cbar1.set_ticks(cbar1_ticks)  # Ensure the same ticks remain, but you can customize these too if needed
+        cbar1.ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f'))  # Format ticks to 0.00
+
+        custom_ticks = [vmin3, -0.15, 0, 0.15, vmax3]
 
         # Set the ticks and custom formatted labels
         cbar2.set_ticks(custom_ticks)
         cbar2.set_ticklabels(
-            [f'min={vmin3:.2f}' if tick == vmin3 else (f'max={vmax3:.2f}' if tick == vmax3 else f'{tick:.2f}') for tick
-             in custom_ticks])
+            [f'$< {vmin3:.2f}$' if tick == vmin3 else (f'$> {vmax3:.2f}$' if tick == vmax3 else f'{tick:.2f}') for tick
+             in custom_ticks]
+        )
 
         max_pos = np.unravel_index(np.argmax(resize(second[0][0][0], (192, 384))), resize(second[0][0][0], (192, 384)).shape)
         max_value = resize(second[0][0][0], (192, 384))[max_pos]
@@ -444,32 +471,37 @@ def create_single_comparison_plot(sample_idx=0, pixel_frequency=100, index_u_v_w
         # Add a pointer to the maximum value
         axs[3].annotate(f'max pred: {max_value:.2f}', xy=(x_max, y_max), xytext=(x_max + 0.4, y_max + 0.4),
                         arrowprops=dict(facecolor='white', shrink=0.05, width=2),
-                        bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="white"), fontsize=17)
+                        bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="white"))
 
         for ax in axs:
-            ax.tick_params(labelsize=18)
+            ax.tick_params(labelsize=16)
 
         # scatter the replaced values to be better visible
         y_ranked_indices = ranked_indices[-(int(fractions[0] * len(ranked_indices)) + 1):][:, 0] - 8
         x_ranked_indices = 2*ranked_indices[-(int(fractions[0] * len(ranked_indices)) + 1):][:, 1] - 16
+
+        y_ranked_indices_raw = np.array(y_ranked_indices)
+        x_ranked_indices_raw = ranked_indices[-(int(fractions[0] * len(ranked_indices)) + 1):][:, 1] - 8
+
         valid_points = (x_ranked_indices >= 0) * (x_ranked_indices < 384) * (y_ranked_indices >= 0) * (y_ranked_indices < 192)
         x_ranked_indices = x_ranked_indices[valid_points]
         y_ranked_indices = y_ranked_indices[valid_points]
         x_ranked_indices_scaled = extent[0] + (extent[1] - extent[0]) * x_ranked_indices / 384
         y_ranked_indices_scaled = extent[2] + (extent[3] - extent[2]) * (192 - y_ranked_indices) / 192
 
-        axs[1].scatter(x_ranked_indices_scaled, y_ranked_indices_scaled, s=6, c='black', marker=',')
+        axs[1].scatter(x_ranked_indices_scaled, y_ranked_indices_scaled, s=0.1, c='black', marker=',')
 
-
+        # save numpy array
+        # np.save(f'./one_pix_removeal_yp15_pressure_second000.npy', second[0][0][0])
         # Calculate the position for the text label
-        bbox = cbar2.ax.get_position()
-        x_pos = bbox.x0 + bbox.width / 2
-        y_pos = bbox.y1 + 0.01
-        # Add a text label just above the lower colorbar
-        fig.text(x_pos, y_pos, f'Values capped at original max', ha='center', va='bottom', rotation=0, fontsize=16)
+        # bbox = cbar2.ax.get_position()
+        # x_pos = bbox.x0 + bbox.width / 2
+        # y_pos = bbox.y1 + 0.01
+        # # Add a text label just above the lower colorbar
+        # fig.text(x_pos, y_pos, f'Values capped at original max', ha='center', va='bottom', rotation=0, fontsize=16)
 
 
-        plt.savefig(f'./images/one_percent_removal_pressure_yp_{config.WallRecon.TARGET_YP}_top_{fractions[0]}_v2.png', dpi=1200, bbox_inches='tight')
+        plt.savefig(f'./images/one_percent_removal_pressure_yp_{config.WallRecon.TARGET_YP}_top_{fractions[0]}_v3.png', dpi=600, bbox_inches='tight')
         k = 0
 
 
@@ -557,8 +589,8 @@ def create_mean_final_plot_continous_pixels_fixed_full_reference_mse():
 # for sample_idx in tqdm(range(len(data_x))):
 #     fractions = np.linspace(0, 1, 100, endpoint=True)
 #     for index_uvw in range(3):
-#         if not os.path.exists(f'./result_rows_yp_{app.TARGET_YP}/result_row_uvw_{index_uvw}_sample_{sample_idx}.npz'):
-#             result_row = create_modified_prediction_continuous_pixels(sample_idx=sample_idx, pixel_frequency=100, index_u_v_w=index_uvw, fractions=fractions)
+#         # if not os.path.exists(f'./result_rows_yp_{app.TARGET_YP}/result_row_uvw_{index_uvw}_sample_{sample_idx}.npz'):
+#         result_row = create_modified_prediction_continuous_pixels(sample_idx=sample_idx, pixel_frequency=100, index_u_v_w=index_uvw, fractions=fractions)
 #             np.savez(f'./result_rows_yp_{app.TARGET_YP}/result_row_uvw_{index_uvw}_sample_{sample_idx}.npz', *result_row)
 # create_mean_final_plot_continous_pixels_fixed_full_reference_mse()
 

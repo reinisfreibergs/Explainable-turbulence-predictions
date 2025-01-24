@@ -23,10 +23,15 @@ data_y = np.load(rf'./y_test_{yp}.npy')
 # df_init = pandas.read_csv(f"structure_stats_abs_inputs_yp{yp}.csv")
 # df_init = pandas.read_csv(f"structure_stats_abs_inputs_yp{yp}_top20.csv")
 # df_init = pandas.read_csv(f"structure_stats_abs_inputs_yp{yp}_top10_min10.csv")
-df_init = pandas.read_csv(f"structure_stats_raw_inputs_yp{yp}_top10_min10.csv")
+# df_init = pandas.read_csv(f"structure_stats_raw_inputs_yp{yp}_top10_min10.csv")
 # df_init = pandas.read_csv(f"structure_stats_raw_inputs_yp{yp}_top20_min20.csv")
 
 # df_init = pandas.read_csv(f"structure_stats_raw_inputs_yp{yp}_top10_min10.csv")
+
+# df_init = pandas.read_csv(f"structure_stats_abs_inputs_yp15_top20_with_outputs_ranked_by_shap.csv")
+# df_init = pandas.read_csv(f"structure_stats_abs_inputs_yp15_top20_with_outputs_ranked_by_input.csv")
+
+df_init = pandas.read_csv(f"structure_stats_abs_inputs_yp15_top10_with_outputs_ranked_by_shap_step.csv")
 
 values = df_init[(df_init['uvw'] == 0) & (df_init['channel'] == 2) & (df_init['area'] > 2)]
 # # sort values by area key
@@ -34,6 +39,11 @@ values = df_init[(df_init['uvw'] == 0) & (df_init['channel'] == 2) & (df_init['a
 # # plt.plot(values['area'], values['shap_abs_sum'])
 # # add values['shap_abs_sum']/values['area'] as the last column
 df_init['shap_abs_sum_per_area'] = df_init['shap_abs_sum']/df_init['area']
+df_init['original_sum_per_area'] = df_init['original_sum']/df_init['area']
+df_init['original_abs_sum_per_area'] = df_init['original_abs_sum']/df_init['area']
+df_init['output_sum_per_area'] = df_init['output_sum']/df_init['area']
+df_init['output_abs_sum_per_area'] = df_init['output_abs_sum']/df_init['area']
+
 values['shap_abs_sum_per_area'] = values['shap_abs_sum']/values['area']
 values = values.sort_values(by='shap_abs_sum_per_area')
 
@@ -41,7 +51,7 @@ values = values.sort_values(by='shap_abs_sum_per_area')
 # sum every consecutive 10 values
 # values['shap_abs_sum_per_area'] = values['shap_abs_sum_per_area'].rolling(10).sum()
 
-def create_contour_plot(X, Y, show_mean=False):
+def create_contour_plot(X, Y, show_mean=False, save=True, xname=None):
     # Create grid points for KDE
     xmin, xmax = 0.99*X.min(), 1.01*X.max()
     ymin, ymax = 0.99*Y.min(), 1.01*Y.max()
@@ -74,22 +84,35 @@ def create_contour_plot(X, Y, show_mean=False):
     # plt.colorbar(label='Count')
 
     plt.xlabel('log(area), grid points', fontsize=24)
+    if xname:
+        plt.xlabel(f'log({xname})', fontsize=32)
     if not show_mean:
         plt.ylabel(r'$log(\sum |\phi| + S)$', fontsize=24)
     else:
         plt.ylabel(r'$log(\frac{1}{N} \sum |\phi| + S)$', fontsize=24)
-    plt.title(f'Distribution of {input_names[channel]} input structure importance scores over {direction_names[uvw]} fluctuation', fontsize=24)
-    plt.xticks(fontsize=18)
-    plt.yticks(fontsize=18)
+    # plt.title(f'Distribution of {input_names[channel]} input structure importance scores over {direction_names[uvw]} fluctuation', fontsize=24)
+    plt.title(f'Distribution of {input_names[channel]} input structure {xname} importance scores over {direction_names[uvw]} fluctuation', fontsize=24)
+    plt.xticks(fontsize=28)
+    plt.yticks(fontsize=28)
     plt.tight_layout()
 
-    if show_mean:
-        plt.savefig(rf'./images_dist_v2/yp15_channel_{channel}_uvw_{uvw}_density_mean.png')
+    if xname is None:
+        if save:
+            if show_mean:
+                plt.savefig(rf'./images_dist_v2/yp15_channel_{channel}_uvw_{uvw}_density_mean.png')
+            else:
+                plt.savefig(rf'./images_dist_v2/yp15_channel_{channel}_uvw_{uvw}_density.png')
+        else:
+            plt.show()
+
     else:
-        plt.savefig(rf'./images_dist_v2/yp15_channel_{channel}_uvw_{uvw}_density.png')
+        if save:
+            plt.savefig(rf'./images/structure_{xname}_yp15_channel_{channel}_uvw_{uvw}_density.png', dpi=300, bbox_inches='tight')
+        else:
+            plt.show()
 
     # plt.show()
-    plt.close()
+    # plt.close()
 
 def create_distribution_plot(X, is_log=False):
     # save log and regular distribution plot for the structure areas
@@ -135,7 +158,7 @@ def save_area_plots(uvw, channel):
     area_sorted = df_init[(df_init['uvw'] == uvw) & (df_init['channel'] == channel) & (df_init['area'] > 9)].sort_values(by='area')
 
     # old 2d version with spikes
-    plot_spikes(area_sorted)
+    # plot_spikes(area_sorted)
 
     # distribution plots
     # create_distribution_plot(area_sorted['area'], is_log=False)
@@ -143,26 +166,74 @@ def save_area_plots(uvw, channel):
 
     # final density plots:
     X = np.array(area_sorted['area'])
+    # X = np.array(area_sorted['length'])
     Y_raw = np.array(area_sorted['shap_abs_sum'])
     Y = np.array(area_sorted['shap_abs_sum'])/np.array(area_sorted['area'])
 
 
-    create_contour_plot(np.log(X), np.log(Y + 0.0000005), show_mean=True)
-    create_contour_plot(np.log(X), np.log(Y_raw + 0.0000005), show_mean=False)
+    # create_contour_plot(np.log(X), np.log(Y + 0.0000005), show_mean=True, save=True)
+    # create_contour_plot(np.log(X), np.log(Y_raw + 0.0000005), show_mean=False, save=True)
+
+    create_contour_plot(np.log(X), np.log(Y + 0.0000005), show_mean=True, save=False)
+    create_contour_plot(np.log(X), np.log(Y_raw + 0.0000005), show_mean=False, save=False)
 
 
 
     # plt.savefig(rf'./images/area_shap_abs_sum_yp15_channel_{channel}_uvw_{uvw}.png')
     plt.close()
 
-# input_names = [r'$\tau_{wx}$ modified input', r'$\tau_{wz}$ modified input', r'$p_{w}$ modified input']
+
+def save_structure_plots(uvw, channel):
+    area_sorted = df_init[(df_init['uvw'] == uvw) & (df_init['channel'] == channel) & (df_init['area'] > 9)].sort_values(by='area')
+
+    columns_to_avoid = ['Unnamed: 0', 'sample_idx', 'channel', 'uvw', 'original_sum']
+    columns_to_plot = [col for col in area_sorted.columns if col not in columns_to_avoid]
+
+    for column in columns_to_plot:
+        X = np.array(area_sorted[column])
+        if not np.sum(X<=0):
+        if not np.isnan(np.log(X)).any() or not np.isinf(np.log(X)).any() and np.all(np.isfinite(np.log(X))):
+                Y = np.array(area_sorted['shap_abs_sum']) / np.array(area_sorted['area'])
+                create_contour_plot(np.log(X), np.log(Y + 0.0000005), show_mean=True, save=True, xname=column)
+                # plt.savefig(rf'./images_dist_v2/yp15_channel_{channel}_uvw_{uvw}_density_mean.png')
+                plt.close()
+
+
+    k = 0
+    # plt.savefig(rf'./images/area_shap_abs_sum_yp15_channel_{channel}_uvw_{uvw}.png')
+    plt.close()
+
+input_names = [r'$\tau_{wx}$ modified input', r'$\tau_{wz}$ modified input', r'$p_{w}$ modified input']
 input_names = [r'$\tau_{wx}$', r'$\tau_{wz}$', r'$p_{w}$']
-# direction_names = ['u', 'v', 'w']
-# for uvw in range(3):
-#     for channel in tqdm(range(3)):
-#         save_area_plots(uvw, channel)
-#
-# exit()
+direction_names = ['u', 'v', 'w']
+for uvw in range(3):
+    for channel in tqdm(range(3)):
+        save_area_plots(uvw, channel)
+        # save_structure_plots(uvw, channel)
+
+exit()
+
+
+def create_simple_density_plot(X, Y):
+    xmin, xmax = 0.99*X.min(), 1.01*X.max()
+    ymin, ymax = 0.99*Y.min(), 1.01*Y.max()
+    bins = (1000, 1000)  # Number of bins for the histogram
+    H_init, xedges, yedges = np.histogram2d(X, Y, bins=bins, range=[[xmin, xmax], [ymin, ymax]])
+    H = scipy.ndimage.gaussian_filter(H_init, sigma=2)
+
+    xcenters = (xedges[:-1] + xedges[1:]) / 2
+    ycenters = (yedges[:-1] + yedges[1:]) / 2
+    X_grid, Y_grid = np.meshgrid(xcenters, ycenters)
+
+    min_density = 0.01
+    max_density = H.max()  # Maximum density
+
+    # Plot the 2D histogram
+    plt.figure(figsize=(16, 10))
+    ax = plt.gca()
+    im = plt.imshow(np.log10(H_init.T), origin='lower', extent=[xmin, xmax, ymin, ymax], cmap='viridis', aspect='auto')
+    contourf = plt.contourf(X_grid, Y_grid, np.log10(H.T), levels=25, extent=[xmin, xmax, ymin, ymax])
+    plt.show()
 
 combined_df = pandas.DataFrame()
 for channel in range(3):
@@ -171,7 +242,8 @@ for channel in range(3):
         # select only those samples where uvw = 0 and channel=0
         df = df_init[(df_init['uvw'] == uvw) & (df_init['channel'] == channel) & (df_init['area'] > 10)]
         #
-        X = df[['area', 'length', 'height', 'original_abs_sum']].to_numpy()
+        # X = df[['area', 'length', 'height', 'original_abs_sum_per_area', 'original_sum_per_area', 'mean_minimum_dist_to_wall', 'output_abs_sum_per_area', 'output_sum_per_area']].to_numpy()
+        X = df[['length', 'height', 'original_abs_sum', 'original_sum', 'mean_minimum_dist_to_wall', 'output_abs_sum', 'output_sum']].to_numpy()
 
         # check if scaling works - it shouldnt matter since its a linear transformation
         # X[:, 0] *= 100
@@ -222,7 +294,7 @@ for channel in range(3):
 
     combined_df = pandas.concat([combined_df, df], ignore_index=True)
 
-combined_df.to_excel(rf'regression_yp_{yp}_raw_top10_min10_scaled_per_area.xlsx', index=False, header=False)
+# combined_df.to_excel(rf'regression_yp_{yp}_raw_top10_min10_scaled_per_area.xlsx', index=False, header=False)
 k = 9
 
 
