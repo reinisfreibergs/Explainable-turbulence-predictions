@@ -74,7 +74,7 @@ for yp in [15, 100]:
             # shap_mean_value_over_channels = np.sqrt(np.sum(mean_shap ** 2, axis=(0))) / 192 ** 2
             # mean_shap = (mean_shap) / shap_mean_value_over_channels[None, :, :, :]
             # shap_mean_value_over_channels = np.sqrt(np.sum(mean_shap**2, axis=(-1, -2, -3))) / 192**2
-            shap_mean_value_over_channels = np.mean(mean_shap, axis=(-1, -2, -3))
+            shap_mean_value_over_channels = np.mean(np.abs(mean_shap), axis=(-1, -2, -3))
             mean_shap = (mean_shap) / shap_mean_value_over_channels[:, None, None, None]
 
         input_names = [r'$\tau_{wx}$', r'$\tau_{wz}$', r'$p_{w}$']
